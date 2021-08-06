@@ -4,4 +4,4 @@ https://www.udacity.com/course/data-engineer-nanodegree--nd027
 
 ## Project 1
 
-[Project1](../data_modeling)
+[data_modeling](/data_modeling)
