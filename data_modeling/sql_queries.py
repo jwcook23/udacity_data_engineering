@@ -1,3 +1,5 @@
+""" Defines the SQL statements to create, drop, select, and insert into SQL tables."""
+
 # DROP TABLES
 
 songplay_table_drop = "DROP TABLE IF EXISTS fact_songplays"
@@ -13,14 +15,14 @@ time_table_drop = "DROP TABLE IF EXISTS dim_time"
 songplay_table_create = ("""
 CREATE TABLE songplays(
 songplay_id SERIAL PRIMARY KEY,
-start_time TIMESTAMP,
-user_id SMALLINT,
-level VARCHAR,
+start_time TIMESTAMP NOT NULL,
+user_id SMALLINT NOT NULL,
+level VARCHAR NOT NULL,
 song_id VARCHAR,
 artist_id VARCHAR,
-session_id SMALLINT,
-location VARCHAR, 
-user_agent VARCHAR,
+session_id SMALLINT NOT NULL,
+location VARCHAR NOT NULL, 
+user_agent VARCHAR NOT NULL,
 CONSTRAINT user_id FOREIGN KEY (user_id) REFERENCES users(user_id),
 CONSTRAINT song_id FOREIGN KEY (song_id) REFERENCES songs(song_id),
 CONSTRAINT artist_id FOREIGN KEY (artist_id) REFERENCES artists(artist_id),
@@ -32,10 +34,10 @@ CONSTRAINT start_time FOREIGN KEY (start_time) REFERENCES time(start_time)
 user_table_create = ("""
 CREATE TABLE users(
 user_id SMALLINT PRIMARY KEY, 
-first_name VARCHAR, 
-last_name VARCHAR, 
-gender VARCHAR, 
-level VARCHAR
+first_name VARCHAR NOT NULL, 
+last_name VARCHAR NOT NULL, 
+gender VARCHAR NOT NULL, 
+level VARCHAR NOT NULL
 )
 """)
 
@@ -43,10 +45,10 @@ level VARCHAR
 song_table_create = ("""
 CREATE TABLE songs(
 song_id VARCHAR PRIMARY KEY,
-title VARCHAR,
-artist_id VARCHAR,
-year SMALLINT, 
-duration DOUBLE PRECISION
+title VARCHAR NOT NULL,
+artist_id VARCHAR NOT NULL,
+year SMALLINT NOT NULL, 
+duration DOUBLE PRECISION NOT NULL
 )
 """)
 
@@ -54,8 +56,8 @@ duration DOUBLE PRECISION
 artist_table_create = ("""
 CREATE TABLE artists(
 artist_id VARCHAR PRIMARY KEY, 
-name VARCHAR, 
-location VARCHAR, 
+name VARCHAR NOT NULL, 
+location VARCHAR NOT NULL, 
 latitude DOUBLE PRECISION, 
 longitude DOUBLE PRECISION
 )
@@ -65,12 +67,12 @@ longitude DOUBLE PRECISION
 time_table_create = ("""
 CREATE TABLE time(
 start_time TIMESTAMP PRIMARY KEY, 
-hour SMALLINT, 
-day SMALLINT, 
-week SMALLINT,
-month SMALLINT,
-year SMALLINT, 
-weekday SMALLINT
+hour SMALLINT NOT NULL, 
+day SMALLINT NOT NULL, 
+week SMALLINT NOT NULL,
+month SMALLINT NOT NULL,
+year SMALLINT NOT NULL, 
+weekday SMALLINT NOT NULL
 )
 """)
 
@@ -84,12 +86,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 """)
 
 ## dimension table: users
+### update the level in the event a user changes between paid/free service
 user_table_insert = ("""
 INSERT INTO users
 (user_id, first_name, last_name, gender, level)
 VALUES (%s, %s, %s, %s, %s)
-ON CONFLICT (user_id)
-DO NOTHING;
+ON CONFLICT (user_id) DO UPDATE SET level=EXCLUDED.level
 """)
 
 ## dimension table: songs

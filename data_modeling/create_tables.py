@@ -3,9 +3,20 @@ from sql_queries import create_table_queries, drop_table_queries
 
 
 def create_database():
-    """
-    - Creates and connects to the sparkifydb
-    - Returns the connection and cursor to sparkifydb
+    """ Creates and connects to the sparkifydb database.
+
+    Parameters
+    ----------
+
+    None
+
+    Returns
+    -------
+
+    con : psycopg2.connection
+        connection to sparkifydb that autocommits transactions
+    cur : psycopg2.cursor
+        cursor for sparkifydb to manage transactions
     """
     
     # connect to default database
@@ -28,8 +39,18 @@ def create_database():
 
 
 def drop_tables(cur, conn):
-    """
-    Drops each table using the queries in `drop_table_queries` list.
+    """ Drops each table using the queries in `drop_table_queries` list.
+
+    Parameters
+    ----------
+    con : psycopg2.connection
+        connection to sparkifydb that autocommits transactions
+    cur : psycopg2.cursor
+        cursor for sparkifydb to manage transactions
+
+    Returns
+    -------
+    None
     """
     for query in drop_table_queries:
         cur.execute(query)
@@ -37,8 +58,18 @@ def drop_tables(cur, conn):
 
 
 def create_tables(cur, conn):
-    """
-    Creates each table using the queries in `create_table_queries` list. 
+    """ Creates each table using the queries in `create_table_queries` list. 
+
+    Parameters
+    ----------
+    con : psycopg2.connection
+        connection to sparkifydb that autocommits transactions
+    cur : psycopg2.cursor
+        cursor for sparkifydb to manage transactions
+        
+    Returns
+    -------
+    None
     """
     for query in create_table_queries:
         cur.execute(query)
@@ -46,17 +77,17 @@ def create_tables(cur, conn):
 
 
 def main():
-    """
-    - Drops (if exists) and Creates the sparkify database. 
-    
-    - Establishes connection with the sparkify database and gets
-    cursor to it.  
-    
-    - Drops all the tables.  
-    
-    - Creates all tables needed. 
-    
-    - Finally, closes the connection. 
+    """ Performs database and table creation steps.
+
+    Drops (if exists) then creates the sparkify database.  Creates all tables needed within the sparkify database. 
+
+    Parameters
+    ----------
+    None
+        
+    Returns
+    -------
+    None 
     """
     cur, conn = create_database()
     

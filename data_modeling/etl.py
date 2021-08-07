@@ -6,6 +6,20 @@ from sql_queries import *
 
 
 def process_song_file(cur, filepath):
+    """ Reads each song file then saves in an SQL table as defined by sql_queries.artist_table_insert.
+
+    Parameters
+    ----------
+    cur : psycopg2.cursor
+        cursor for sparkifydb to manage transactions
+    filepath : str
+        path to a single song file
+
+    Returns
+    -------
+    None
+    """
+
     # open song file
     song_file = pd.read_json(filepath, lines=True)
 
@@ -19,6 +33,22 @@ def process_song_file(cur, filepath):
 
 
 def process_log_file(cur, filepath):
+    """ Reads each log file then saves in an SQL table as defined by sql_queries.user_table_insert and sql_queries.songplays_table_insert.
+
+    Retrives song_id & artist_id for sql_queries.songplays_table_insert using sql_queries.song_select.
+
+    Parameters
+    ----------
+    cur : psycopg2.cursor
+        cursor for sparkifydb to manage transactions
+    filepath : str
+        path to a single long file
+
+    Returns
+    -------
+    None
+    """
+
     # open log file
     log = pd.read_json(filepath, lines=True)
 
@@ -33,7 +63,7 @@ def process_log_file(cur, filepath):
     column_labels = ('timestamp', 'hour', 'day', 'week of year', 'month', 'year', 'weekday')
     time_df = pd.DataFrame({col: time_data[idx] for idx,col in enumerate(column_labels)})
 
-    for i, row in time_df.iterrows():
+    for _, row in time_df.iterrows():
         cur.execute(time_table_insert, list(row))
 
     # load user table
@@ -80,6 +110,18 @@ def process_data(cur, conn, filepath, func):
 
 
 def main():
+    """ Processes song and log files by determining folder contents and then calling the appropriate processing function.
+    
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    None
+    
+    """
+
     conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
     cur = conn.cursor()
 
