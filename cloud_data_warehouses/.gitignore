@@ -1,0 +1,2 @@
+# ignore AWS configuration parameters
+/dwh.cfg
