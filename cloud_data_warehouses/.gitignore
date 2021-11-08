@@ -1,2 +1,5 @@
-# ignore AWS configuration parameters
+# AWS configuration parameters
 /dwh.cfg
+
+# Python viritual environment
+/user_song_plays/

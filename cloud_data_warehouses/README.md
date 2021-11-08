@@ -4,6 +4,14 @@ An Amazon Web Services (AWS) Extract-Transform-Load (ETL) pipeline that allows a
 
 ## Quick Start
 
+1. Create Virtual Environment
+
+``` cmd
+python -m venv user_song_plays
+.\user_song_plays\Scripts\activate
+pip install -r requirements.txt
+```
+
 ## ETL Process Overview
 
 1. Source Files into Staging Tables
