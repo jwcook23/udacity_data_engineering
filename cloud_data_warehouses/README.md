@@ -51,3 +51,18 @@ LOG_DATA='s3://udacity-dend/log-data'
 LOG_JSONPATH='s3://udacity-dend/log_json_path.json'
 SONG_DATA='s3://udacity-dend/song-data'
 ```
+
+## Automated Setup and Teardown
+
+1. Navigate to IAM / Access Management / Users / Add users
+2. User name = user_song_plays_setup
+3. Select AWS credential type = Access key - Programatic access
+4. Next: Permissions
+5. Attach existing policies directly
+6. Select AdministratorAccess
+7. Next: Tags
+8. Next: Review
+9. Create user
+10. Copy the provided values to the AWS section of dwh.cfg
+10a. [AWS][KEY] = Access key ID
+10b. [AWS][SECRET] = Secret access key
