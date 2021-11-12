@@ -4,13 +4,15 @@ An Amazon Web Services (AWS) Extract-Transform-Load (ETL) pipeline that allows a
 
 ## Quick Start
 
-1. Create Virtual Environment
+Terminal commands are showing for a Windows command prompt.
 
-``` cmd
-python -m venv user_song_plays
-.\user_song_plays\Scripts\activate
-pip install -r requirements.txt
-```
+1. Create/Activate Virtual Environment & Install Dependancies
+
+    ``` cmd
+    python -m venv env
+    .\env\Scripts\activate
+    pip install -r requirements.txt
+    ```
 
 ## ETL Process Overview
 
@@ -52,7 +54,9 @@ LOG_JSONPATH='s3://udacity-dend/log_json_path.json'
 SONG_DATA='s3://udacity-dend/song-data'
 ```
 
-## Automated Setup and Teardown
+## Infastructure as Code to Create/Delete Redshift Cluster
+
+Manual required initial setup.
 
 1. Navigate to IAM / Access Management / Users / Add users
 2. User name = user_song_plays_setup
@@ -64,5 +68,53 @@ SONG_DATA='s3://udacity-dend/song-data'
 8. Next: Review
 9. Create user
 10. Copy the provided values to the AWS section of dwh.cfg
-10a. [AWS][KEY] = Access key ID
-10b. [AWS][SECRET] = Secret access key
+
+    ``` dwh.cfg
+    [AWS][KEY] = Access key ID
+    [AWS][SECRET] = Secret access key
+    ```
+
+Install dependancies.
+
+``` cmd
+pip install -r infrastructure-requirements.py
+```
+
+Run the script to create the Redshift cluster infrastructure.
+
+``` cmd
+infrastructure.py create
+```
+
+This will produce a terminal output similar to the following.
+
+``` cmd
+Creating Redshift IAM Role YYYY.
+Attaching Redshift IAM Role YYYY policy for S3 read only access.
+Creating Redshift cluster sparkify.
+Creating database user_song_plays in Redshift cluster.
+Checking cluster availability. Attempt 0/4.
+Waiting 30 seconds before checking cluster availability.
+Redshift cluster sparkify is available.
+Setting [IAM_ROLE][ARN]=arn:aws:iam::XXX:role/YYY in config file dwh.cfg.
+Setting [CLUSTER][HOST]=ZZZ.us-west-2.redshift.amazonaws.com in config file dwh.cfg.
+```
+
+***Carefully*** run the script to delete the Redshift infrastructure. This will delete everything without creating a snapshot or backup.
+
+``` cmd
+infrastructure.py delete
+```
+
+This will produce a terminal output similar to the following.
+
+``` cmd
+Deleting Redshift cluster sparkify.
+Checking cluster deletion. Attempt 0/4.
+Waiting 30 seconds before checking cluster deletion.
+Redshift cluster sparkify has been deleted/does not exist.
+Detaching S3 Policy from IAM Role songplays_S3toRedshiftStaging.
+Detached S3 Policy from IAM Role songplays_S3toRedshiftStaging.
+Deleting IAM Role songplays_S3toRedshiftStaging.
+Redshift IAM Role songplays_S3toRedshiftStaging has been deleted.
+```

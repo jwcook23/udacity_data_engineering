@@ -1,4 +1,30 @@
-''' Setup or teardown Redshift cluster and associated IAM role for user_song_plays ETL process.
+''' Create or delete a Redshift cluster and associated IAM role for user song plays ETL process.
+
+Creating can be ran numerous times without causing multiple resources to be created or errors 
+to be raised. Deleting can likewise be ran numerous times. If creating infrastructure, values 
+are also written to the configuration file for the [IAM_ROLE][ARN] and [CLUSTER][HOST] 
+so they do not have to be manually copied.
+
+Parameters
+----------
+plan (str) : infrastructure plan to perform, options are 'create' or 'delete'
+
+Returns
+-------
+None
+
+See Also
+--------
+dwh.cfg
+
+Create Example
+--------------
+infrastructure.py create
+
+Delete Example
+--------------
+infrastructure.py delete
+
 '''
 
 import configparser
@@ -31,7 +57,10 @@ clients = {
     )
 }
 
-def setup(config, clients):
+def create(config, clients):
+
+    STATUS_CHECK_ATTEMPTS = int(config['AWS']['STATUS_CHECK_ATTEMPTS'])
+    STATUS_CHECK_DELAY_SEC = int(config['AWS']['STATUS_CHECK_DELAY_SEC'])
 
     # Create IAM Role for Redshift S3 Access
     print(f"Creating Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']}.")
@@ -59,12 +88,8 @@ def setup(config, clients):
         RoleName=config['IAM_ROLE']['ROLE_NAME'],
         PolicyArn="arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
     )['ResponseMetadata']['HTTPStatusCode']
-    # set ARN in configuration file
+    # get Redshift S3 access resource name set ARN in configuration file
     redshiftS3_arn = clients['iam'].get_role(RoleName=config['IAM_ROLE']['ROLE_NAME'])['Role']['Arn']
-    print(f"Setting [IAM_ROLE][ARN]={redshiftS3_arn} in config file {config.__path__}.")
-    config.set('IAM_ROLE','ARN',redshiftS3_arn)
-    with open(config.__path__, 'w') as fh:
-        config.write(fh)
 
     # Create Redshift Cluster
     print(f"Creating Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']}.")
@@ -78,9 +103,10 @@ def setup(config, clients):
             # identifiers
             DBName=config['CLUSTER']['DB_NAME'],
             ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER'],
-            # credentials
+            # credentials and access
             MasterUsername=config['CLUSTER']['DB_USER'],
             MasterUserPassword=config['CLUSTER']['DB_PASSWORD'],
+            Port=int(config['CLUSTER']['PORT']),
             # roles
             IamRoles=[redshiftS3_arn]
         )
@@ -90,24 +116,49 @@ def setup(config, clients):
         else:
             raise
     # wait for cluster to become avaliable
-    attempt_max = 5
-    attempt_sec = 30
-    for attempt in range(0,attempt_max):
-        print(f"Checking cluster availability. Attempt {attempt}/{attempt_max-1}.")
+    cluster_host = None
+    for attempt in range(0,STATUS_CHECK_ATTEMPTS):
+        print(f"Checking cluster availability. Attempt {attempt}/{STATUS_CHECK_ATTEMPTS-1}.")
+        print(f"Waiting {STATUS_CHECK_DELAY_SEC} seconds before checking cluster availability.")
+        time.sleep(STATUS_CHECK_DELAY_SEC)
         cluster = clients['redshift'].describe_clusters(
             ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER']
         )
         cluster = cluster['Clusters'][0]
         if cluster['ClusterStatus']=='available':
             print(f"Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']} is available.")
+            cluster_host = cluster['Endpoint']['Address']
             break
-        elif attempt==attempt_max:
+        elif attempt==STATUS_CHECK_ATTEMPTS:
             raise RecursionError("Cluster availability check max attempts exceeded. Suggest re-running setup script.")
-        else:
-            print(f"Waiting {attempt_sec} seconds before rechecking cluster availability.")
-            time.sleep(attempt_sec)
 
-def teardown(config, clients):
+    # open incoming TCP port to access the cluster externally
+    try:
+        vpc = ec2.Vpc(id=myClusterProps['VpcId'])
+        defaultSg = list(vpc.security_groups.all())[0]
+        print(defaultSg)
+        defaultSg.authorize_ingress(
+            GroupName=defaultSg.group_name,
+            CidrIp='0.0.0.0/0',
+            IpProtocol='TCP',
+            FromPort=int(DWH_PORT),
+            ToPort=int(DWH_PORT)
+        )
+    except Exception as e:
+        print(e)
+
+    # save values in config file
+    print(f"Setting [IAM_ROLE][ARN]={redshiftS3_arn} in config file {config.__path__}.")
+    print(f"Setting [CLUSTER][HOST]={cluster_host} in config file {config.__path__}.")
+    config.set('IAM_ROLE','ARN',redshiftS3_arn)
+    config.set('CLUSTER','HOST',cluster_host)
+    with open(config.__path__, 'w') as fh:
+        config.write(fh)
+
+def delete(config, clients):
+
+    STATUS_CHECK_ATTEMPTS = int(config['AWS']['STATUS_CHECK_ATTEMPTS'])
+    STATUS_CHECK_DELAY_SEC = int(config['AWS']['STATUS_CHECK_DELAY_SEC'])
 
     # Delete Redshift Cluster
     print(f"Deleting Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']}.")
@@ -122,18 +173,17 @@ def teardown(config, clients):
         else:
             raise
     # wait for cluster to be deleted
-    for attempt in range(0,config['STAUS_CHECK_ATTEMPTS']):
+    for attempt in range(0, STATUS_CHECK_ATTEMPTS ):
         try:
-            print(f"Checking cluster deletion. Attempt {attempt}/{config['STAUS_CHECK_ATTEMPTS']-1}.")
+            print(f"Checking cluster deletion. Attempt {attempt}/{STATUS_CHECK_ATTEMPTS-1}.")
+            print(f"Waiting {STATUS_CHECK_DELAY_SEC} seconds before checking cluster deletion.")
+            time.sleep(STATUS_CHECK_DELAY_SEC)
             cluster = clients['redshift'].describe_clusters(
                 ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER']
             )
             cluster = cluster['Clusters'][0]
-            if attempt==config['STAUS_CHECK_ATTEMPTS']:
+            if attempt==STATUS_CHECK_ATTEMPTS:
                 raise RecursionError("Cluster deletion check max attempts exceeded. Suggest re-running teardown script.")
-            else:
-                print(f"Waiting {config['STATUS_CHECK_DELAY_SEC']} seconds before rechecking cluster deletion.")
-                time.sleep(config['STATUS_CHECK_DELAY_SEC'])
         except ClientError as err:
             if err.response['Error']['Code'] == 'ClusterNotFound':
                 print(f"Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']} has been deleted/does not exist.")
@@ -169,11 +219,11 @@ def teardown(config, clients):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('plan', type=str, choices=['setup','teardown'])
+    parser.add_argument('plan', type=str, choices=['create','delete'])
 
     args = parser.parse_args()
 
-    if args['plan'] == 'setup':
-        setup(config, clients)
-    elif args['plan'] == 'teardown':
-        teardown(config, clients)
+    if args.plan == 'create':
+        create(config, clients)
+    elif args.plan == 'delete':
+        delete(config, clients)
