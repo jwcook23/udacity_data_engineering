@@ -1,5 +1,5 @@
 import configparser
-
+from functools import partial
 
 # Load Configuration
 config = configparser.ConfigParser()
@@ -7,51 +7,143 @@ config.read('dwh.cfg')
 
 # Drop Tables
 ## 1. IF EXISTS clause is used to help support testing purposes.
-
-staging_events_table_drop = "DROP TABLE IF EXISTS staging_log_data"
-staging_songs_table_drop = "DROP TABLE IF EXISTS staging_song_data"
-songplay_table_drop = "DROP TABLE IF EXISTS songplay"
-user_table_drop = "DROP TABLE IF EXISTS user"
-song_table_drop = "DROP TABLE IF EXISTS song"
-artist_table_drop = "DROP TABLE IF EXISTS artist"
-time_table_drop = "DROP TABLE IF EXISTS time"
+tables = ['staging_log_data','staging_song_data','songplay','users','songs','artists','time']
+drop = {t:'DROP TABLE IF EXISTS {table}' for t in tables}
 
 # Create Tables
-## 1. unknown length character columns use the default Redshift length of 256.
-## 2. primary key constraints are not used since Redshift does not enforce these (although it uses them for query plans).
+## 1. data is loaded into staging tables using raw column names and data types (transformation done later)
+## 2. unknown length character columns use the default Redshift length of 256.
+## 3. primary key constraints are not used in staging tables since Redshift does not enforce these (used in final tables only).
+create = {}
 
-staging_events_table_create= (
-    "CREATE TABLE staging_log_data ("
-        "title VARCHAR(256),"                       # log_data['song']
-        "artist_name VARCHAR(256),"                 # log_data['artist']
-        "start_time TIMESTAMP NOT NULL,"            # log_data['ts']
-        "user_id BIGINT NOT NULL,"                  # log_data['userId']
-        "session_id BIGINT NOT NULL,"               # log_data['sessionId']           
-        "level VARCHAR(4) NOT NULL,"                # log_data['level']
-        "location VARCHAR(256),"                    # log_data['location']
-        "user_agent VARCHAR(256) NOT NULL"          # log_data['userAgent']
-        "first_name VARCHAR(256) NOT NULL,"         # log_data['firstName']
-        "last_name VARCHAR(256) NOT NULL,"          # log_data['lastName']
-        "gender VARCHAR(1) NOT NULL,"               # log_data['gender']
+create['staging_log_data'] = (
+    "CREATE TABLE {table} ("
+        "artist VARCHAR(256),"
+        "auth VARCHAR(256) NOT NULL,"
+        "firstName VARCHAR(256) NOT NULL,"
+        "gender VARCHAR(1) NOT NULL,"
+        "itemInSession SMALLINT NOT NULL,"
+        "lastName VARCHAR(256) NOT NULL,"
+        "length FLOAT4 NOT NULL,"
+        "level VARCHAR(4) NOT NULL,"
+        "location VARCHAR(256),"
+        "method VARCHAR(3) NOT NULL,"
+        "page VARCHAR(10) NOT NULL,"
+        "registration BIGINT NOT NULL,"
+        "sessionId BIGINT NOT NULL,"
+        "song VARCHAR(256) NOT NULL,"
+        "status SMALLINT NOT NULL,"
+        "ts BIGINT NOT NULL,"
+        "userAgent VARCHAR(256) NOT NULL,"
+        "userId BIGINT NOT NULL"
     ")"
 )
 
-staging_songs_table_create = (
-    "CREATE TABLE staging_song_data ("
-        "song_id VARCHAR(18) NOT NULL,"             # song_data['song_id']
-        "artist_id VARCHAR(18) NOT NULL,"           # song_data['artist_id']
-        "title VARCHAR(256) NOT NULL,"              # song_data['title']
-        "year SMALLINT,"                            # song_data['year']
-        "duration DOUBLE PRECISION NOT NULL,"       # song_data['duration']
-        "artist_name VARCHAR(256) NOT NULL,"        # song_data['artist_name']
-        "artist_location VARCHAR(30),"              # song_data['artist_location']
-        "artist_latitude DOUBLE PRECISION,"         # song_data['artist_latitude']
-        "artist_longitude DOUBLE PRECISION"         # song_data['artist_longitude']
+create['staging_song_data'] = (
+    "CREATE TABLE {table} ("
+        "song_id VARCHAR(18) NOT NULL,"
+        "artist_id VARCHAR(18) NOT NULL,"
+        "title VARCHAR(256) NOT NULL,"
+        "year SMALLINT,"
+        "duration DOUBLE PRECISION NOT NULL,"
+        "artist_name VARCHAR(256) NOT NULL,"
+        "artist_location VARCHAR(30),"
+        "artist_latitude DOUBLE PRECISION,"
+        "artist_longitude DOUBLE PRECISION"
     ")"
 )
 
-songplay_table_create = (
-    "CREATE TABLE songplay ("
+create['songplay'] = (
+    "CREATE TABLE {table} ("
+        "songplay_id BIGINT IDENTITY(0,1) PRIMARY KEY,"
+        "song_id VARCHAR(18) NOT NULL,"
+        "artist_id VARCHAR(18) NOT NULL,"
+        "start_time TIMESTAMP NOT NULL,"
+        "user_id BIGINT NOT NULL,"
+        "session_id BIGINT NOT NULL,"        
+        "level VARCHAR(4) NOT NULL,"
+        "location VARCHAR(256),"
+        "user_agent VARCHAR(256) NOT NULL"
+    ")"
+)
+
+create['users'] = (
+    "CREATE TABLE {table} ("
+        "user_id BIGINT NOT NULL PRIMARY KEY,"
+        "first_name VARCHAR(256) NOT NULL,"
+        "last_name VARCHAR(256) NOT NULL,"
+        "gender VARCHAR(1) NOT NULL,"
+        "level VARCHAR(4) NOT NULL"
+    ")"
+)
+
+create['songs'] = (
+    "CREATE TABLE {table} ("
+        "song_id VARCHAR(18) NOT NULL PRIMARY KEY,"
+        "title VARCHAR(256) NOT NULL,"
+        "artist_id VARCHAR(18) NOT NULL,"
+        "year SMALLINT,"
+        "duration DOUBLE PRECISION NOT NULL"
+    ")"
+)
+
+create['artists'] = (
+    "CREATE TABLE {table} ("
+        "artist_id VARCHAR(18) NOT NULL PRIMARY KEY,"
+        "artist_name VARCHAR(256) NOT NULL,"
+        "artist_location VARCHAR(30),"
+        "artist_latitude DOUBLE PRECISION,"
+        "artist_longitude DOUBLE PRECISION"
+    ")"
+)
+
+create['time'] = (
+    "CREATE TABLE {table} ("
+        "start_time TIMESTAMP NOT NULL,"
+        "hour SMALLINT NOT NULL,"
+        "day SMALLINT NOT NULL,"
+        "week SMALLINT NOT NULL,"
+        "month SMALLINT NOT NULL,"
+        "year SMALLINT NOT NULL,"
+        "weekday SMALLINT NOT NULL"
+    ")"
+)
+
+# Copy from AWS S3 into Redshift Staging Tables
+## COMPUPDATE OFF: disables automatic compression to improve performance when loading many smaller files
+## TIMEFORMAT: not set as 'epochmillisecs', instead
+## FORMAT AS JSON: could optionally specify a subset of columns to load since all might not be used
+
+copy = {}
+
+table = 'staging_log_data'
+s3 = config['S3']['LOG_DATA']
+query = ("""
+COPY {table} FROM {s3}
+    CREDENTIALS 'aws_iam_role={iam_role}'
+    COMPUPDATE OFF region '{region}'
+    FORMAT AS JSON {json_mapping};
+""")
+copy[(table, s3)] = partial(
+    query.format,
+    iam_role = config['IAM_ROLE']['ARN'],
+    region=config['AWS']['REGION'],
+    json_mapping=config['S3']['LOG_JSONPATH']   
+)
+
+# staging_songs_copy = (f"""
+#     COPY staging_song_data
+#     FROM {config['S3']['SONG_DATA']}
+#     IAM_ROLE {config['IAM_ROLE']['ARN']}
+# """)
+
+# Insert from Redshift Staging Tables into Final Redshift Tables
+insert = {}
+
+# TODO: inforce primary keys using https://www.intermix.io/blog/improve-redshift-copy-performance/
+# TODO: and also https://knowledge.udacity.com/questions/495317
+
+insert['songplay'] = ("""
         "songplay_id BIGINT IDENTITY(0,1)"          # SQL autogenerated unique values
         "song_id VARCHAR(18) NOT NULL,"             # song_data['song_id'] using log_data['song']=song_data['title']
         "artist_id VARCHAR(18) NOT NULL,"           # song_data['artist_id'] using log_data['artist']=song_data['artist_name']
@@ -61,41 +153,33 @@ songplay_table_create = (
         "level VARCHAR(4) NOT NULL,"                # log_data['level']
         "location VARCHAR(256),"                    # log_data['location']
         "user_agent VARCHAR(256) NOT NULL"          # log_data['userAgent']
-    ")"
-)
+""")
 
-user_table_create = (
-    "CREATE TABLE user ("
+insert['users'] = ("""
         "user_id BIGINT NOT NULL,"                  # log_data['userId']
         "first_name VARCHAR(256) NOT NULL,"         # log_data['firstName']
         "last_name VARCHAR(256) NOT NULL,"          # log_data['lastName']
         "gender VARCHAR(1) NOT NULL,"               # log_data['gender']
         "level VARCHAR(4) NOT NULL"                 # log_data['level']
-    ")"
-)
+""")
 
-song_table_create = (
-    "CREATE TABLE song ("
+insert['songs'] = ("""
         "song_id VARCHAR(18) NOT NULL,"             # song_data['song_id']
         "title VARCHAR(256) NOT NULL,"              # song_data['title']
         "artist_id VARCHAR(18) NOT NULL,"           # song_data['artist_id']
         "year SMALLINT,"                            # song_data['year']
         "duration DOUBLE PRECISION NOT NULL"        # song_data['duration']
-    ")"
-)
+""")
 
-artist_table_create = (
-    "CREATE TABLE artist ("
+insert['artist'] = ("""
         "artist_id VARCHAR(18) NOT NULL,"           # song_data['artist_id']
         "artist_name VARCHAR(256) NOT NULL,"        # song_data['artist_name']
         "artist_location VARCHAR(30),"              # song_data['artist_location']
         "artist_latitude DOUBLE PRECISION,"         # song_data['artist_latitude']
         "artist_longitude DOUBLE PRECISION"         # song_data['artist_longitude']
-    ")"
-)
+""")
 
-time_table_create = (
-    "CREATE TABLE time ("
+insert_time = ("""
         "start_time TIMESTAMP NOT NULL,"            # log_data['ts']
         "hour SMALLINT NOT NULL",                   # log_data['ts']
         "day SMALLINT NOT NULL,"                    # log_data['ts']
@@ -103,53 +187,11 @@ time_table_create = (
         "month SMALLINT NOT NULL,"                  # log_data['ts']
         "year SMALLINT NOT NULL,"                   # log_data['ts']
         "weekday SMALLINT NOT NULL"                 # log_data['ts']
-    ")"
-)
-
-# Copy from AWS S3 into Redshift Staging Tables
-
-staging_events_copy = (f"""
-    COPY staging_log_data
-    FROM
-""")
-# staging_events_copy = ("""
-# # COPY staging_events FROM {}
-# #     CREDENTIALS 'aws_iam_role={}'
-# #     COMPUPDATE OFF region 'us-west-2'
-# #     TIMEFORMAT as 'epochmillisecs'
-# #     FORMAT AS JSON {};
-# # """).format(
-#     config.get('S3', 'LOG_DATA'), 
-#     config.get('IAM_ROLE', 'ARN'), 
-#     config.get('S3', 'LOG_JSONPATH')
-#             )
-
-staging_songs_copy = (f"""
-    COPY staging_song_data
-    FROM {config['S3']['SONG_DATA']}
-    IAM_ROLE {config['IAM_ROLE']['ARN']}
-""")
-
-# Insert from Redshift Staging Tables into Final Redshift Tables
-
-songplay_table_insert = ("""
-""")
-
-user_table_insert = ("""
-""")
-
-song_table_insert = ("""
-""")
-
-artist_table_insert = ("""
-""")
-
-time_table_insert = ("""
 """)
 
 # Package Query Lists
 
-create_table_queries = [staging_events_table_create, staging_songs_table_create, songplay_table_create, user_table_create, song_table_create, artist_table_create, time_table_create]
-drop_table_queries = [staging_events_table_drop, staging_songs_table_drop, songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
-copy_table_queries = [staging_events_copy, staging_songs_copy]
-insert_table_queries = [songplay_table_insert, user_table_insert, song_table_insert, artist_table_insert, time_table_insert]
+# create_table_queries = [staging_events_table_create, staging_songs_table_create, songplay_table_create, user_table_create, song_table_create, artist_table_create, time_table_create]
+# drop_table_queries = [staging_events_table_drop, staging_songs_table_drop, songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
+# copy_table_queries = [staging_events_copy, staging_songs_copy]
+# insert_table_queries = [songplay_table_insert, user_table_insert, song_table_insert, artist_table_insert, time_table_insert]

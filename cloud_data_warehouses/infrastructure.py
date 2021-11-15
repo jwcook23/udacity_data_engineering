@@ -54,6 +54,12 @@ clients = {
         aws_access_key_id=config['AWS']['KEY'],
         aws_secret_access_key=config['AWS']['SECRET'],
         region_name=config['AWS']['REGION']
+    ),
+    'ec2': boto3.resource(
+        'ec2',
+        aws_access_key_id=config['AWS']['KEY'],
+        aws_secret_access_key=config['AWS']['SECRET'],
+        region_name=config['AWS']['REGION']
     )
 }
 
@@ -106,7 +112,7 @@ def create(config, clients):
             # credentials and access
             MasterUsername=config['CLUSTER']['DB_USER'],
             MasterUserPassword=config['CLUSTER']['DB_PASSWORD'],
-            Port=int(config['CLUSTER']['PORT']),
+            Port=int(config['CLUSTER']['DB_PORT']),
             # roles
             IamRoles=[redshiftS3_arn]
         )
@@ -133,19 +139,22 @@ def create(config, clients):
             raise RecursionError("Cluster availability check max attempts exceeded. Suggest re-running setup script.")
 
     # open incoming TCP port to access the cluster externally
+    print(f"Opening Redshift cluster TCP port {config['CLUSTER']['DB_PORT']} for external access.")
     try:
-        vpc = ec2.Vpc(id=myClusterProps['VpcId'])
+        vpc = clients['ec2'].Vpc(id=cluster['VpcId'])
         defaultSg = list(vpc.security_groups.all())[0]
-        print(defaultSg)
         defaultSg.authorize_ingress(
             GroupName=defaultSg.group_name,
             CidrIp='0.0.0.0/0',
             IpProtocol='TCP',
-            FromPort=int(DWH_PORT),
-            ToPort=int(DWH_PORT)
+            FromPort=int(config['CLUSTER']['DB_PORT']),
+            ToPort=int(config['CLUSTER']['DB_PORT'])
         )
-    except Exception as e:
-        print(e)
+    except ClientError as err:
+        if err.response['Error']['Code'] == 'InvalidPermission.Duplicate':
+            print(f"Redshift cluster TCP port {config['CLUSTER']['DB_PORT']} is already open.")
+        else:
+            raise
 
     # save values in config file
     print(f"Setting [IAM_ROLE][ARN]={redshiftS3_arn} in config file {config.__path__}.")
@@ -199,7 +208,6 @@ def delete(config, clients):
             RoleName=config['IAM_ROLE']['ROLE_NAME'],
             PolicyArn="arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
         )
-        print(f"Detached S3 Policy from IAM Role {config['IAM_ROLE']['ROLE_NAME']}.")
     except ClientError as err:
         if err.response['Error']['Code'] == 'NoSuchEntity':
             print(f"S3 Policy for IAM Role {config['IAM_ROLE']['ROLE_NAME']} does not exist.")
@@ -209,7 +217,6 @@ def delete(config, clients):
     print(f"Deleting IAM Role {config['IAM_ROLE']['ROLE_NAME']}.")
     try:
         clients['iam'].delete_role(RoleName=config['IAM_ROLE']['ROLE_NAME'])
-        print(f"Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']} has been deleted.")
     except ClientError as err:
         if err.response['Error']['Code'] == 'NoSuchEntity':
             print(f"Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']} does not exist.")

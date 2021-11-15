@@ -96,6 +96,7 @@ Creating database user_song_plays in Redshift cluster.
 Checking cluster availability. Attempt 0/4.
 Waiting 30 seconds before checking cluster availability.
 Redshift cluster sparkify is available.
+Opening Redshift cluster TCP port 5439 for external access.
 Setting [IAM_ROLE][ARN]=arn:aws:iam::XXX:role/YYY in config file dwh.cfg.
 Setting [CLUSTER][HOST]=ZZZ.us-west-2.redshift.amazonaws.com in config file dwh.cfg.
 ```
@@ -114,7 +115,5 @@ Checking cluster deletion. Attempt 0/4.
 Waiting 30 seconds before checking cluster deletion.
 Redshift cluster sparkify has been deleted/does not exist.
 Detaching S3 Policy from IAM Role songplays_S3toRedshiftStaging.
-Detached S3 Policy from IAM Role songplays_S3toRedshiftStaging.
 Deleting IAM Role songplays_S3toRedshiftStaging.
-Redshift IAM Role songplays_S3toRedshiftStaging has been deleted.
 ```
