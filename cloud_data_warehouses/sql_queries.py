@@ -35,7 +35,7 @@ create['staging_log_data'] = (
         "status SMALLINT NOT NULL,"
         "ts BIGINT NOT NULL,"
         "userAgent VARCHAR(256),"
-        "userId BIGINT NOT NULL"
+        "userId BIGINT"
     ")"
 )
 
@@ -47,7 +47,7 @@ create['staging_song_data'] = (
         "year SMALLINT,"
         "duration DOUBLE PRECISION NOT NULL,"
         "artist_name VARCHAR(256) NOT NULL,"
-        "artist_location VARCHAR(30),"
+        "artist_location VARCHAR(256),"
         "artist_latitude DOUBLE PRECISION,"
         "artist_longitude DOUBLE PRECISION"
     ")"
@@ -91,7 +91,7 @@ create['artists'] = (
     "CREATE TABLE {table} ("
         "artist_id VARCHAR(18) NOT NULL PRIMARY KEY,"
         "artist_name VARCHAR(256) NOT NULL,"
-        "artist_location VARCHAR(30),"
+        "artist_location VARCHAR(256),"
         "artist_latitude DOUBLE PRECISION,"
         "artist_longitude DOUBLE PRECISION"
     ")"
@@ -113,6 +113,7 @@ create['time'] = (
 ## COMPUPDATE OFF: disables automatic compression to improve performance when loading many smaller files
 ## TIMEFORMAT: not set as 'epochmillisecs', instead
 ## FORMAT AS JSON: could optionally specify a subset of columns to load since all might not be used
+## TODO: why is FORMAT AS JSON different in the first example?
 
 copy = {}
 
@@ -120,9 +121,9 @@ table = 'staging_log_data'
 s3 = config['S3']['LOG_DATA']
 query = ("""
 COPY {table} FROM {s3}
-    CREDENTIALS 'aws_iam_role={iam_role}'
-    COMPUPDATE OFF region '{region}'
-    FORMAT AS JSON {json_mapping};
+CREDENTIALS 'aws_iam_role={iam_role}'
+COMPUPDATE OFF region '{region}'
+FORMAT AS JSON {json_mapping};
 """)
 copy[(table, s3)] = partial(
     query.format,
@@ -131,11 +132,19 @@ copy[(table, s3)] = partial(
     json_mapping=config['S3']['LOG_JSONPATH']   
 )
 
-# staging_songs_copy = (f"""
-#     COPY staging_song_data
-#     FROM {config['S3']['SONG_DATA']}
-#     IAM_ROLE {config['IAM_ROLE']['ARN']}
-# """)
+table = 'staging_song_data'
+s3 = config['S3']['SONG_DATA']
+query = ("""
+COPY {table} FROM {s3}
+CREDENTIALS 'aws_iam_role={iam_role}'
+COMPUPDATE OFF region '{region}'
+FORMAT JSON 'auto';
+""")
+copy[(table, s3)] = partial(
+    query.format,
+    iam_role = config['IAM_ROLE']['ARN'],
+    region=config['AWS']['REGION']
+)
 
 # Insert from Redshift Staging Tables into Final Redshift Tables
 insert = {}

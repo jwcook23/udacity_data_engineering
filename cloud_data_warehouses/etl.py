@@ -34,11 +34,10 @@ def redshift_error_detail(cur, err):
     if it is referred to in err, then raise a RedshiftLoadError exception.
     Otherwise err is re-raised.
 
-    A RedshiftLoadError exeception describes unique errors for each column.
-    Keys represent column names and values are a unique list of errors for 
-    each column.
+    A RedshiftLoadError exeception describes err_reason and the source 
+    filename for the error. Keys represent Redshift table column names.
 
-    Note there is no guarantee the error comes from the table being loaded
+    There is no guarantee the error comes from the table being loaded
     into. See https://forums.aws.amazon.com/thread.jspa?messageID=897976 for
     explanation that the table id in stl_load_errors doesn't reference a 
     physical table.
@@ -55,18 +54,19 @@ def redshift_error_detail(cur, err):
     cur.connection.rollback()
     if "Check 'stl_load_errors' system table for details" in str(err):
         cur.execute(f'''
-            SELECT colname, err_reason, tbl
+            SELECT filename, colname, err_reason
             FROM stl_load_errors
             WHERE starttime = (
                 SELECT MAX(starttime) from stl_load_errors
             )
         ''')
         error = cur.fetchall()
-        parsed = defaultdict(set)
+        parsed = defaultdict(list)
         for err in error:
-            colname = err[0].strip()
-            err_reason = err[1].strip()
-            parsed[colname].add(err_reason)
+            filename = err[0].strip()
+            colname = err[1].strip()
+            err_reason = err[2].strip()
+            parsed[colname].append({'err_reason': err_reason, 'filename': filename})
         parsed = dict(parsed)
         raise RedShiftLoadError(parsed)
     else:
