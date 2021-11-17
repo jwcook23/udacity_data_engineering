@@ -20,7 +20,8 @@ def load_staging_tables(cur, conn):
 
 
 def insert_tables(cur, conn):
-    for table, query in insert:
+    for table, query in insert.items():
+        query = query.format(table=table)
         print(f'Inserting data into table {table}.')
         cur.execute(query)
         conn.commit()
@@ -85,8 +86,8 @@ def main():
     )
     cur = conn.cursor()
     
-    load_staging_tables(cur, conn)
-    # insert_tables(cur, conn)
+    # load_staging_tables(cur, conn)
+    insert_tables(cur, conn)
 
     conn.close()
 

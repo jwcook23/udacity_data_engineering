@@ -1,6 +1,15 @@
 # Sparkify User Song Plays
 
-An Amazon Web Services (AWS) Extract-Transform-Load (ETL) pipeline that allows analytical queries to answer questions about user song plays.
+An Amazon Web Services (AWS) Extract-Transform-Load (ETL) process that allows queries to answer analytical questions about user song plays.
+
+Analytical questions to answer may include the following to help keep users engaged:
+
+1. Trending songs/albums.
+2. Top 10 daily songs/albums.
+3. User birthdays.
+4. Users with a long time period since last usage.
+5. Song suggestions based on user listen history.
+6. Geographical maps for advertising.
 
 ## Quick Start
 
