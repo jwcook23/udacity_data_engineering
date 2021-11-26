@@ -6,16 +6,21 @@ from sql_queries import copy, insert
 
 def load_staging_tables(cur, conn):
     for table_s3, query in copy.items():
+
         table = table_s3[0]
-        s3 = table_s3[1]
-        print(f'Beginning copy from S3 bucket {s3} into table {table}.')
-        query = query(table=table, s3=s3)
-        try:
-            cur.execute(query)
-        except Exception as err:
-            redshift_error_detail(cur, err)
+        bucket = table_s3[1]
+        print(f'Beginning copy from S3 bucket {bucket} into table {table}.')
+
+        starttime = stl_load_starttime(cur, bucket)
+
+        query = query(table=table, bucket=bucket)
+        cur.execute(query)
         conn.commit()
-        print(f'Completed copy from S3 bucket {s3} into table {table}.')
+        print(f'Completed copy from S3 bucket {bucket} into table {table}.')
+
+        load_errors = stl_load_errors(cur, bucket, starttime)
+        if load_errors:
+            print(f'Errors skipped during copy:\n{load_errors}')
 
 
 def insert_tables(cur, conn):
@@ -25,11 +30,28 @@ def insert_tables(cur, conn):
         cur.execute(query)
         conn.commit()
 
-class RedShiftLoadError(Exception):
-    ''' Error when loading data into a Redshift table.'''
-    pass
+def stl_load_starttime(cur, bucket):
 
-def redshift_error_detail(cur, err):
+    # use wildcard search in case nested folders are loaded
+    bucket = bucket[0:-1]+"%"+bucket[-1]
+
+    # find last load time for a bucket
+    query = f"""
+    SELECT 
+        MAX(starttime)
+    FROM
+        stl_load_errors 
+    WHERE filename LIKE {bucket}
+    """
+    cur.execute(query)
+    starttime = cur.fetchone()
+    starttime = starttime[0]
+    if starttime is not None:
+        starttime = str(starttime)
+
+    return starttime
+
+def stl_load_errors(cur, bucket, starttime):
     ''' Get latest Redshift error detail from the table stl_load_errors 
     if it is referred to in err, then raise a RedshiftLoadError exception.
     Otherwise err is re-raised.
@@ -49,28 +71,35 @@ def redshift_error_detail(cur, err):
 
     Returns
     -------
-    None
+    load_errors (dict) : 
     '''
-    cur.connection.rollback()
-    if "Check 'stl_load_errors' system table for details" in str(err):
-        cur.execute(f'''
-            SELECT filename, colname, err_reason
-            FROM stl_load_errors
-            WHERE starttime = (
-                SELECT MAX(starttime) from stl_load_errors
-            )
-        ''')
-        error = cur.fetchall()
-        parsed = defaultdict(list)
-        for err in error:
-            filename = err[0].strip()
-            colname = err[1].strip()
-            err_reason = err[2].strip()
-            parsed[colname].append({'err_reason': err_reason, 'filename': filename})
-        parsed = dict(parsed)
-        raise RedShiftLoadError(parsed)
+
+    # use wildcard search in case nested folders are loaded
+    bucket = bucket[0:-1]+"%"+bucket[-1]
+
+    # get new errors since last load
+    if starttime is None:
+        starttime = ""
     else:
-        raise
+        starttime = f"AND starttime > '{starttime}'"
+    cur.execute(f"""
+        SELECT filename, colname, err_reason
+        FROM stl_load_errors
+        WHERE filename LIKE {bucket}
+        {starttime}
+    """)
+    error = cur.fetchall()
+
+    # list error reasons and source file names for columns causing errors
+    load_errors = defaultdict(list)
+    for err in error:
+        filename = err[0].strip()
+        colname = err[1].strip()
+        err_reason = err[2].strip()
+        load_errors[colname].append({'err_reason': err_reason, 'filename': filename})
+    load_errors = dict(load_errors)
+
+    return load_errors
 
 def main():
     config = configparser.ConfigParser()

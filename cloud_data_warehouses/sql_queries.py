@@ -125,7 +125,8 @@ create['songplay'] = """
 
 # Copy from AWS S3 into Redshift Staging Tables
 ## COMPUPDATE OFF: disables automatic compression to improve performance when loading many smaller files
-## TIMEFORMAT: not set as 'epochmillisecs', instead
+## EMPTYASNULL: treat empty strings such as '' as NULL
+## TRUNCATECOLUMNS: s3://udacity-dend/song-data/A/Y/F/TRAYFUW128F428F618.json artist_location is invalid (appears to be javascript) - could examine length of strings compared to DDL to identy more
 ## FORMAT AS JSON: could optionally specify a subset of columns to load since all might not be used
 ## TODO: why is FORMAT AS JSON different in the first example?
 ## ideally data would be loaded for new files in S3 using a lambda trigger, but only a one time ELT is being done for this project
@@ -133,14 +134,15 @@ create['songplay'] = """
 copy = OrderedDict()
 
 table = 'staging_events'
-s3 = config['S3']['LOG_DATA']
+bucket = config['S3']['LOG_DATA']
 query = ("""
-COPY {table} FROM {s3}
+COPY {table} FROM {bucket}
 CREDENTIALS 'aws_iam_role={iam_role}'
 COMPUPDATE OFF region '{region}'
-FORMAT AS JSON {json_mapping};
+FORMAT AS JSON {json_mapping}
+MAXERROR 10
 """)
-copy[(table, s3)] = partial(
+copy[(table, bucket)] = partial(
     query.format,
     iam_role = config['IAM_ROLE']['ARN'],
     region=config['AWS']['REGION'],
@@ -148,14 +150,15 @@ copy[(table, s3)] = partial(
 )
 
 table = 'staging_songs'
-s3 = config['S3']['SONG_DATA']
+bucket = config['S3']['SONG_DATA']
 query = ("""
-COPY {table} FROM {s3}
+COPY {table} FROM {bucket}
 CREDENTIALS 'aws_iam_role={iam_role}'
 COMPUPDATE OFF region '{region}'
-FORMAT JSON 'auto';
+FORMAT JSON 'auto'
+MAXERROR 10
 """)
-copy[(table, s3)] = partial(
+copy[(table, bucket)] = partial(
     query.format,
     iam_role = config['IAM_ROLE']['ARN'],
     region=config['AWS']['REGION']

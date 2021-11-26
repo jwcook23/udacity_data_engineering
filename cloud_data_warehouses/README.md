@@ -126,3 +126,9 @@ Redshift cluster sparkify has been deleted/does not exist.
 Detaching S3 Policy from IAM Role songplays_S3toRedshiftStaging.
 Deleting IAM Role songplays_S3toRedshiftStaging.
 ```
+
+## Create Tables
+
+## ETL
+
+{'artist_location': [{'err_reason': 'String length exceeds DDL length', 'filename': 's3://udacity-dend/song-data/A/Y/F/TRAYFUW128F428F618.json'}]}
