@@ -1,5 +1,6 @@
 import configparser
 from functools import partial
+from collections import OrderedDict
 
 # Load Configuration
 config = configparser.ConfigParser()
@@ -7,119 +8,131 @@ config.read('dwh.cfg')
 
 # Drop Tables
 ## 1. IF EXISTS clause is used to help support testing purposes.
-tables = ['staging_log_data','staging_song_data','songplay','users','songs','artists','time']
+tables = ['staging_events','staging_songs','songplay','users','songs','artists','time']
 drop = {t:'DROP TABLE IF EXISTS {table}' for t in tables}
 
 # Create Tables
-## 1. data is loaded into staging tables using raw column names and data types (transformation done later)
+## 1. data is loaded into staging tables using raw column names and data types without any transformation or data validity checks
 ## 2. unknown length character columns use the default Redshift length of 256.
-## 3. primary key constraints are not used in staging tables since Redshift does not enforce these (used in final tables only).
-create = {}
+## 5. primary and foreign keys are defined in the fact and dimension tables for query optimization. Since Redshift does not 
+## enforce them, they are later checked to make sure they remain valid.
+create = OrderedDict()
 
-create['staging_log_data'] = (
-    "CREATE TABLE {table} ("
-        "artist VARCHAR(256),"
-        "auth VARCHAR(256) NOT NULL,"
-        "firstName VARCHAR(256),"
-        "gender VARCHAR(1),"
-        "itemInSession SMALLINT NOT NULL,"
-        "lastName VARCHAR(256),"
-        "length FLOAT4,"
-        "level VARCHAR(4) NOT NULL,"
-        "location VARCHAR(256),"
-        "method VARCHAR(3) NOT NULL,"
-        "page VARCHAR(256) NOT NULL,"
-        "registration BIGINT,"
-        "sessionId BIGINT NOT NULL,"
-        "song VARCHAR(256),"
-        "status SMALLINT NOT NULL,"
-        "ts BIGINT NOT NULL,"
-        "userAgent VARCHAR(256),"
-        "userId BIGINT"
-    ")"
-)
+create['staging_events'] = """
+    CREATE TABLE {table} (
+        artist VARCHAR(256),
+        auth VARCHAR(256) NOT NULL,
+        firstName VARCHAR(256),
+        gender VARCHAR(1),
+        itemInSession SMALLINT NOT NULL,
+        lastName VARCHAR(256),
+        length DOUBLE PRECISION,
+        level VARCHAR(4) NOT NULL,
+        location VARCHAR(256),
+        method VARCHAR(3) NOT NULL,
+        page VARCHAR(256) NOT NULL,
+        registration BIGINT,
+        sessionId BIGINT NOT NULL,
+        song VARCHAR(256),
+        status SMALLINT NOT NULL,
+        ts BIGINT NOT NULL,
+        userAgent VARCHAR(256),
+        userId BIGINT
+    )
+"""
 
 
-create['staging_song_data'] = (
-    "CREATE TABLE {table} ("
-        "song_id VARCHAR(18) NOT NULL,"
-        "artist_id VARCHAR(18) NOT NULL,"
-        "title VARCHAR(256) NOT NULL,"
-        "year SMALLINT,"
-        "duration DOUBLE PRECISION NOT NULL,"
-        "artist_name VARCHAR(256) NOT NULL,"
-        "artist_location VARCHAR(256),"
-        "artist_latitude DOUBLE PRECISION,"
-        "artist_longitude DOUBLE PRECISION"
-    ")"
-)
+create['staging_songs'] = """
+    CREATE TABLE {table} (
+        song_id VARCHAR(18) NOT NULL,
+        artist_id VARCHAR(18) NOT NULL,
+        title VARCHAR(256) NOT NULL,
+        year SMALLINT,
+        duration DOUBLE PRECISION NOT NULL,
+        artist_name VARCHAR(256) NOT NULL,
+        artist_location VARCHAR(256),
+        artist_latitude DOUBLE PRECISION,
+        artist_longitude DOUBLE PRECISION
+    )
+"""
+
+## dimension table 1
+create['users'] = """
+    CREATE TABLE {table} (
+        user_id BIGINT NOT NULL,
+        first_name VARCHAR(256) NOT NULL,
+        last_name VARCHAR(256) NOT NULL,
+        gender VARCHAR(1) NOT NULL,
+        level VARCHAR(4) NOT NULL,
+        PRIMARY KEY (user_id)
+    )
+"""
+## dimension table 2
+create['songs'] = """
+    CREATE TABLE {table} (
+        song_id VARCHAR(18) NOT NULL,
+        title VARCHAR(256) NOT NULL,
+        artist_id VARCHAR(18) NOT NULL,
+        year SMALLINT,
+        duration DOUBLE PRECISION NOT NULL,
+        PRIMARY KEY (song_id)
+    )
+"""
+## dimension table 3
+create['artists'] = """
+    CREATE TABLE {table} (
+        artist_id VARCHAR(18) NOT NULL,
+        artist_name VARCHAR(256) NOT NULL,
+        artist_location VARCHAR(256),
+        artist_latitude DOUBLE PRECISION,
+        artist_longitude DOUBLE PRECISION,
+        PRIMARY KEY (artist_id)
+    )
+"""
+## dimension table 4
+create['time'] = """
+    CREATE TABLE {table} (
+        start_time TIMESTAMP NOT NULL SORTKEY,
+        hour SMALLINT NOT NULL,
+        day SMALLINT NOT NULL,
+        week SMALLINT NOT NULL,
+        month SMALLINT NOT NULL,
+        year SMALLINT NOT NULL,
+        weekday SMALLINT NOT NULL,
+        PRIMARY KEY (start_time)
+    )
+"""
 
 ## fact table
-create['songplay'] = (
-    "CREATE TABLE {table} ("
-        "songplay_id BIGINT IDENTITY(0,1) PRIMARY KEY,"
-        "song_id VARCHAR(18) NOT NULL,"
-        "artist_id VARCHAR(18) NOT NULL,"
-        "start_time TIMESTAMP NOT NULL SORTKEY,"
-        "user_id BIGINT NOT NULL,"
-        "session_id BIGINT NOT NULL,"        
-        "level VARCHAR(4) NOT NULL,"
-        "location VARCHAR(256),"
-        "user_agent VARCHAR(256) NOT NULL"
-    ")"
-)
-## dimension table 1
-create['users'] = (
-    "CREATE TABLE {table} ("
-        "user_id BIGINT NOT NULL PRIMARY KEY,"
-        "first_name VARCHAR(256) NOT NULL,"
-        "last_name VARCHAR(256) NOT NULL,"
-        "gender VARCHAR(1) NOT NULL,"
-        "level VARCHAR(4) NOT NULL"
-    ")"
-)
-## dimension table 2
-create['songs'] = (
-    "CREATE TABLE {table} ("
-        "song_id VARCHAR(18) NOT NULL PRIMARY KEY,"
-        "title VARCHAR(256) NOT NULL,"
-        "artist_id VARCHAR(18) NOT NULL,"
-        "year SMALLINT,"
-        "duration DOUBLE PRECISION NOT NULL"
-    ")"
-)
-## dimension table 3
-create['artists'] = (
-    "CREATE TABLE {table} ("
-        "artist_id VARCHAR(18) NOT NULL PRIMARY KEY,"
-        "artist_name VARCHAR(256) NOT NULL,"
-        "artist_location VARCHAR(256),"
-        "artist_latitude DOUBLE PRECISION,"
-        "artist_longitude DOUBLE PRECISION"
-    ")"
-)
-## dimension table 4
-create['time'] = (
-    "CREATE TABLE {table} ("
-        "start_time TIMESTAMP NOT NULL,"
-        "hour SMALLINT NOT NULL,"
-        "day SMALLINT NOT NULL,"
-        "week SMALLINT NOT NULL,"
-        "month SMALLINT NOT NULL,"
-        "year SMALLINT NOT NULL,"
-        "weekday SMALLINT NOT NULL"
-    ")"
-)
+create['songplay'] = """
+    CREATE TABLE {table} (
+        songplay_id BIGINT IDENTITY(0,1),
+        song_id VARCHAR(18) NOT NULL,
+        artist_id VARCHAR(18) NOT NULL,
+        start_time TIMESTAMP NOT NULL SORTKEY,
+        user_id BIGINT NOT NULL,
+        session_id BIGINT NOT NULL,
+        level VARCHAR(4) NOT NULL,
+        location VARCHAR(256),
+        user_agent VARCHAR(256) NOT NULL,
+        PRIMARY KEY (songplay_id),
+        FOREIGN KEY (user_id) REFERENCES users(user_id),
+        FOREIGN KEY (song_id) REFERENCES songs(song_id),
+        FOREIGN KEY (artist_id) REFERENCES artists(artist_id),
+        FOREIGN KEY (start_time) REFERENCES time(start_time)
+    )
+"""
 
 # Copy from AWS S3 into Redshift Staging Tables
 ## COMPUPDATE OFF: disables automatic compression to improve performance when loading many smaller files
 ## TIMEFORMAT: not set as 'epochmillisecs', instead
 ## FORMAT AS JSON: could optionally specify a subset of columns to load since all might not be used
 ## TODO: why is FORMAT AS JSON different in the first example?
+## ideally data would be loaded for new files in S3 using a lambda trigger, but only a one time ELT is being done for this project
 
-copy = {}
+copy = OrderedDict()
 
-table = 'staging_log_data'
+table = 'staging_events'
 s3 = config['S3']['LOG_DATA']
 query = ("""
 COPY {table} FROM {s3}
@@ -134,7 +147,7 @@ copy[(table, s3)] = partial(
     json_mapping=config['S3']['LOG_JSONPATH']   
 )
 
-table = 'staging_song_data'
+table = 'staging_songs'
 s3 = config['S3']['SONG_DATA']
 query = ("""
 COPY {table} FROM {s3}
@@ -149,103 +162,143 @@ copy[(table, s3)] = partial(
 )
 
 # Insert from Redshift Staging Tables into Final Redshift Tables
-insert = {}
+## ideally the data would be loaded from the staging tables into the fact & diminsion tables using an UPSERT technique
+## this is not done as only a one time ETL is being performed
+insert = OrderedDict()
 
-# TODO: inforce primary keys using https://www.intermix.io/blog/improve-redshift-copy-performance/
-# TODO: and also https://knowledge.udacity.com/questions/495317
-
-# insert['songplay'] = ("""
-#         "songplay_id BIGINT IDENTITY(0,1)"          # SQL autogenerated unique values
-#         "song_id VARCHAR(18) NOT NULL,"             # song_data['song_id'] using log_data['song']=song_data['title']
-#         "artist_id VARCHAR(18) NOT NULL,"           # song_data['artist_id'] using log_data['artist']=song_data['artist_name']
-#         "start_time TIMESTAMP NOT NULL,"            # log_data['ts']
-#         "user_id BIGINT NOT NULL,"                  # log_data['userId']
-#         "session_id BIGINT NOT NULL,"               # log_data['sessionId']           
-#         "level VARCHAR(4) NOT NULL,"                # log_data['level']
-#         "location VARCHAR(256),"                    # log_data['location']
-#         "user_agent VARCHAR(256) NOT NULL"          # log_data['userAgent']
-# """)
-
-# insert['users'] = ("""
-#         "user_id BIGINT NOT NULL,"                  # log_data['userId']
-#         "first_name VARCHAR(256) NOT NULL,"         # log_data['firstName']
-#         "last_name VARCHAR(256) NOT NULL,"          # log_data['lastName']
-#         "gender VARCHAR(1) NOT NULL,"               # log_data['gender']
-#         "level VARCHAR(4) NOT NULL"                 # log_data['level']
-# """)
-
-# insert['songs'] = ("""
-#         "song_id VARCHAR(18) NOT NULL,"             # song_data['song_id']
-#         "title VARCHAR(256) NOT NULL,"              # song_data['title']
-#         "artist_id VARCHAR(18) NOT NULL,"           # song_data['artist_id']
-#         "year SMALLINT,"                            # song_data['year']
-#         "duration DOUBLE PRECISION NOT NULL"        # song_data['duration']
-# """)
-
-## select latest artist data based on last played song
-insert['artist'] = ("""
+# combination of song and events data 
+insert['songplay'] = ("""
 INSERT INTO {table} (
+    start_time, 
+    user_id, 
+    level, 
+    song_id, 
+    artist_id, 
+    session_id, 
+    location, 
+    user_agent
+)
+SELECT
+    (TIMESTAMP 'epoch' + logs.ts/1000 * INTERVAL '1 Second ') AS start_time,
+    logs.userId AS user_id,
+    logs.level,
+    songs.song_id,
+    songs.artist_id,
+    logs.sessionId AS session_id,
+    logs.location,
+    logs.userAgent AS user_agent
+FROM staging_songs AS songs
+INNER JOIN staging_events AS logs
+    ON songs.artist_name = logs.artist
+    AND songs.title = logs.song
+    AND songs.duration = logs.length
+WHERE logs.page = 'Next Song'
+""")
+
+# unique user data by last played song for each user_id
+## example: level may change from "free" to "paid"
+insert['users'] = ("""
+INSERT INTO {table}
+SELECT
+    user_id,
+    first_name,
+    last_name,
+    gender,
+    level
+FROM (
+    SELECT
+        userId AS user_id,
+        firstName AS first_name,
+        lastName AS last_name,
+        gender,
+        level,
+        RANK() OVER (
+            PARTITION BY user_id
+            ORDER BY ts DESC NULLS LAST
+        ) AS _latest        
+    FROM
+        staging_events
+    WHERE
+        user_id IS NOT NULL
+) WHERE _latest = 1
+""")
+
+# unique song data for each song_id
+## once a song is released, columns in this table would remain static
+insert['songs'] = ("""
+INSERT INTO {table}
+SELECT 
+    song_id,
+    title,
+    artist_id,
+    year,
+    duration
+FROM (
+    SELECT
+        song_id,
+        MAX(title) AS title,
+        MAX(artist_id) AS artist_id,
+        MAX(year) AS year,
+        MAX(duration) as duration
+    FROM
+        staging_songs
+    GROUP BY song_id
+)
+""")
+
+# unique artist data for each artist_id by year of song
+## last played song as an attempted tie-breaker, if a tie does occur a record is picked non-deterministically
+## artist location and lat/long may be updated
+insert['artists'] = ("""
+INSERT INTO {table}
+SELECT
     artist_id,
     artist_name,
     artist_location,
     artist_latitude,
     artist_longitude
-)
-SELECT
-    songs.artist_id,
-    songs.artist_name,
-    songs.artist_location,
-    songs.artist_latitude,
-    songs.artist_longitude
 FROM (
     SELECT
-        songs.artist_id,
-        songs.artist_name,
-        songs.artist_location,
-        songs.artist_latitude,
-        songs.artist_longitude,
-        RANK() OVER (PARTITION BY songs.artist_id ORDER BY logs.ts DESC) AS _latest_played
-    FROM 
-        staging_song_data AS songs
-    LEFT JOIN
-        staging_log_data as logs
-    ON (
-        songs.artists_name = logs.artist
-        AND songs.title = logs.song
-        AND songs.duration = logs.length
-    )
-) WHERE _latest_played = 1
+        staging_songs.artist_id,
+        staging_songs.artist_name,
+        staging_songs.artist_location,
+        staging_songs.artist_latitude,
+        staging_songs.artist_longitude,
+        ROW_NUMBER() OVER (
+            PARTITION BY staging_songs.artist_id
+            ORDER BY staging_songs.year DESC, staging_events.ts DESC
+        ) AS _latest
+    FROM staging_songs
+    LEFT JOIN staging_events
+        ON staging_songs.artist_name = staging_events.artist
+        AND staging_songs.title = staging_events.song
+        AND staging_songs.duration = staging_events.length
+)
+WHERE _latest = 1
 """)
 
-# insert['time'] = ("""
-# INSERT INTO {table} (
-#     start_time, 
-#     hour, 
-#     day, 
-#     week, 
-#     month, 
-#     year, 
-#     weekday
-# )
-# SELECT 
-#     _timestamp, 
-#     EXTRACT(HOUR FROM _timestamp), 
-#     EXTRACT(DAY FROM _timestamp), 
-#     EXTRACT(WEEK FROM _timestamp), 
-#     EXTRACT(MONTH FROM _timestamp), 
-#     EXTRACT(YEAR FROM _timestamp), 
-#     EXTRACT(WEEKDAY FROM _timestamp)
-# FROM ( 
-#     SELECT DISTINCT
-#         (TIMESTAMP 'epoch' + ts/1000 * INTERVAL '1 Second ') as _timestamp
-#     FROM 
-#         staging_log_data
-# )
-# """)
-
-# Package Query Lists
-
-# create_table_queries = [staging_events_table_create, staging_songs_table_create, songplay_table_create, user_table_create, song_table_create, artist_table_create, time_table_create]
-# drop_table_queries = [staging_events_table_drop, staging_songs_table_drop, songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
-# copy_table_queries = [staging_events_copy, staging_songs_copy]
-# insert_table_queries = [songplay_table_insert, user_table_insert, song_table_insert, artist_table_insert, time_table_insert]
+insert['time'] = ("""
+INSERT INTO {table} (
+    start_time, 
+    hour, 
+    day, 
+    week, 
+    month, 
+    year, 
+    weekday
+)
+SELECT 
+    _timestamp, 
+    EXTRACT(HOUR FROM _timestamp), 
+    EXTRACT(DAY FROM _timestamp), 
+    EXTRACT(WEEK FROM _timestamp), 
+    EXTRACT(MONTH FROM _timestamp), 
+    EXTRACT(YEAR FROM _timestamp), 
+    EXTRACT(WEEKDAY FROM _timestamp)
+FROM ( 
+    SELECT DISTINCT
+        (TIMESTAMP 'epoch' + ts/1000 * INTERVAL '1 Second ') as _timestamp
+    FROM 
+        staging_events
+)
+""")

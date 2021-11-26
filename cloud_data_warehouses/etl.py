@@ -1,6 +1,5 @@
 import configparser
 from collections import defaultdict
-import re
 import psycopg2
 from sql_queries import copy, insert
 
@@ -86,7 +85,7 @@ def main():
     )
     cur = conn.cursor()
     
-    # load_staging_tables(cur, conn)
+    load_staging_tables(cur, conn)
     insert_tables(cur, conn)
 
     conn.close()
