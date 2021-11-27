@@ -1,3 +1,7 @@
+'''Ensure primary key values are made unique during the ETL process from
+the staging tables to the fact and dimension tables since Redshift does
+not enforce primary key uniqueness.'''
+
 import configparser
 import psycopg2
 
@@ -15,11 +19,6 @@ def check_contents(cur):
 
         pk = v['pk']
 
-        # get overall number of records
-        query = f'SELECT COUNT({pk}) FROM {t}'
-        cur.execute(query)
-        records = cur.fetchone()[0]
-
         # get unique number of primary key values
         query = f"""
             SELECT 
@@ -32,6 +31,11 @@ def check_contents(cur):
         cur.execute(query)
         duplicates = cur.fetchall()
         duplicates = [x[0] for x in duplicates]
+
+        # get overall number of records
+        query = f'SELECT COUNT({pk}) FROM {t}'
+        cur.execute(query)
+        records = cur.fetchone()[0]
 
         # ensure primary key is unique
         if len(duplicates)==0:

@@ -1,10 +1,13 @@
 import configparser
 from collections import defaultdict
+import json
 import psycopg2
-from sql_queries import copy, insert
+from sql_queries import copy_syntax, insert_syntax
 
 
 def load_staging_tables(cur, conn):
+
+    copy = copy_syntax()
     for table_s3, query in copy.items():
 
         table = table_s3[0]
@@ -18,12 +21,11 @@ def load_staging_tables(cur, conn):
         conn.commit()
         print(f'Completed copy from S3 bucket {bucket} into table {table}.')
 
-        load_errors = stl_load_errors(cur, bucket, starttime)
-        if load_errors:
-            print(f'Errors skipped during copy:\n{load_errors}')
+        stl_load_errors(cur, bucket, table, starttime)
 
 
 def insert_tables(cur, conn):
+    insert = insert_syntax()
     for table, query in insert.items():
         query = query.format(table=table)
         print(f'Inserting data into table {table}.')
@@ -31,6 +33,18 @@ def insert_tables(cur, conn):
         conn.commit()
 
 def stl_load_starttime(cur, bucket):
+    '''Determine timestamp of previous load error from a S3 bucket. Used to determine any new errors that occur.
+    
+    Parameters
+    ----------
+    cur (psycopg2.connect.cursor) : cursor for execute SQL statements
+    bucket (str) : url path to S3 bucket such as 's3://udacity-dend/song-data/A'
+
+    Returns
+    -------
+    previous_error_ts (str) : starttime of previous load errors in 'YYYY-MM-DD hh:mm:ss.fff' format
+
+    '''
 
     # use wildcard search in case nested folders are loaded
     bucket = bucket[0:-1]+"%"+bucket[-1]
@@ -44,44 +58,47 @@ def stl_load_starttime(cur, bucket):
     WHERE filename LIKE {bucket}
     """
     cur.execute(query)
-    starttime = cur.fetchone()
-    starttime = starttime[0]
-    if starttime is not None:
-        starttime = str(starttime)
+    previous_error_ts = cur.fetchone()
+    previous_error_ts = previous_error_ts[0]
+    if previous_error_ts is not None:
+        previous_error_ts = str(previous_error_ts)
 
-    return starttime
+    return previous_error_ts
 
-def stl_load_errors(cur, bucket, starttime):
-    ''' Get latest Redshift error detail from the table stl_load_errors 
-    if it is referred to in err, then raise a RedshiftLoadError exception.
-    Otherwise err is re-raised.
-
-    A RedshiftLoadError exeception describes err_reason and the source 
-    filename for the error. Keys represent Redshift table column names.
-
-    There is no guarantee the error comes from the table being loaded
-    into. See https://forums.aws.amazon.com/thread.jspa?messageID=897976 for
-    explanation that the table id in stl_load_errors doesn't reference a 
-    physical table.
+def stl_load_errors(cur, bucket, table, previous_error_ts):
+    ''' Determine S3 files that were not loaded into a staging table during a COPY
+    command due to the COPY MAXERROR parameter. If errors are encountered, they
+    are written to a file named 'stl_load_errors_{table}.json'.
 
     Parameters
     ----------
-    cur (psycopg2.connect.cursor) : cursor for executing statements
-    err (Exception) : any exception that is raised
+    cur (psycopg2.connect.cursor) : cursor for executing SQL statements
+    bucket (str) : url path to S3 bucket such as 's3://udacity-dend/song-data/A'
+    table (str) : name of Redshift database table
+    previous_error_ts (str) : starttime of previous load errors in 'YYYY-MM-DD hh:mm:ss.fff' format
 
     Returns
     -------
-    load_errors (dict) : 
+    None
+
+    The file named 'stl_load_errors_{table}.json' contains error reasons and source S3 file names for
+    each column that resulted in an error in the following format.
+
+    {
+        columnA: {'err_reason': ['SomeErrorReason'], 'filename': ['s3://Bucket1']},
+        columnB: {'err_reason': ['SomeErrorReason'], 'filename': ['s3://Bucket2']}
+    }
+
     '''
 
     # use wildcard search in case nested folders are loaded
     bucket = bucket[0:-1]+"%"+bucket[-1]
 
     # get new errors since last load
-    if starttime is None:
+    if previous_error_ts is None:
         starttime = ""
     else:
-        starttime = f"AND starttime > '{starttime}'"
+        starttime = f"AND starttime > '{previous_error_ts}'"
     cur.execute(f"""
         SELECT filename, colname, err_reason
         FROM stl_load_errors
@@ -99,7 +116,13 @@ def stl_load_errors(cur, bucket, starttime):
         load_errors[colname].append({'err_reason': err_reason, 'filename': filename})
     load_errors = dict(load_errors)
 
-    return load_errors
+    if load_errors:
+        error_file = f'stl_load_errors_{table}.json'
+        print(f'Saving table {table} load errors into file {error_file}.')
+        with open(error_file, 'w', encoding='utf-8') as fh:
+            json.dump(load_errors, fh, ensure_ascii=False, indent=4)
+    else:
+        print(f'No errors occured loading into table {table}.')
 
 def main():
     config = configparser.ConfigParser()
