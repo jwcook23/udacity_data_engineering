@@ -36,7 +36,8 @@ Terminal commands are showing for a Windows command prompt.
 
     TODO: The data is first loaded into staging tables to leverage the database engine's ability to join data from files in both log_data and event_data.
 
-    TODO: parallel loading is used to increase the speed of loading data
+    TODO: is parallel loading being peformed?
+    TODO: how many clusters should be used?
 
 2. Staging Table into Analytical Tables
 

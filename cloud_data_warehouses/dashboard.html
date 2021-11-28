@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .error {
+        color: red;
+    }
+  </style>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm//vega@5"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm//vega-lite@4.8.1"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm//vega-embed@6"></script>
+</head>
+<body>
+  <div id="vis"></div>
+  <script>
+    (function(vegaEmbed) {
+      var spec = {"config": {"view": {"continuousWidth": 400, "continuousHeight": 300}}, "hconcat": [{"layer": [{"mark": "bar", "encoding": {"x": {"type": "quantitative", "axis": {"format": "%"}, "field": "percent", "stack": "zero"}, "y": {"type": "nominal", "field": "level"}}, "title": "Service Level"}, {"mark": {"type": "text", "color": "white", "dx": -15, "dy": 3}, "encoding": {"text": {"type": "quantitative", "field": "percent", "format": ".0%"}, "x": {"type": "quantitative", "field": "percent", "stack": "zero"}, "y": {"type": "nominal", "field": "level"}}}], "data": {"name": "data-9ecac953eb13c7589d04c58cd983c1b8"}, "height": 100}, {"data": {"name": "data-84e9516950e4cfed16afa0a947a9a811"}, "mark": "line", "encoding": {"x": {"type": "quantitative", "field": "day"}, "y": {"type": "quantitative", "field": "count"}}, "height": 200}], "$schema": "https://vega.github.io/schema/vega-lite/v4.8.1.json", "datasets": {"data-9ecac953eb13c7589d04c58cd983c1b8": [{"level": "free", "percent": 0.7708333333333334}, {"level": "paid", "percent": 0.22916666666666666}], "data-84e9516950e4cfed16afa0a947a9a811": [{"day": 29, "count": 319}, {"day": 4, "count": 144}, {"day": 10, "count": 87}, {"day": 9, "count": 252}, {"day": 7, "count": 174}, {"day": 15, "count": 479}, {"day": 6, "count": 154}, {"day": 26, "count": 216}, {"day": 12, "count": 166}, {"day": 24, "count": 314}, {"day": 19, "count": 276}, {"day": 25, "count": 41}, {"day": 30, "count": 330}, {"day": 21, "count": 437}, {"day": 14, "count": 390}, {"day": 3, "count": 100}, {"day": 17, "count": 127}, {"day": 28, "count": 363}, {"day": 22, "count": 82}, {"day": 20, "count": 322}, {"day": 13, "count": 339}, {"day": 1, "count": 11}, {"day": 5, "count": 356}, {"day": 18, "count": 138}, {"day": 2, "count": 155}, {"day": 16, "count": 319}, {"day": 27, "count": 256}, {"day": 23, "count": 239}, {"day": 8, "count": 161}, {"day": 11, "count": 73}]}};
+      var embedOpt = {"mode": "vega-lite"};
+
+      function showError(el, error){
+          el.innerHTML = ('<div class="error" style="color:red;">'
+                          + '<p>JavaScript Error: ' + error.message + '</p>'
+                          + "<p>This usually means there's a typo in your chart specification. "
+                          + "See the javascript console for the full traceback.</p>"
+                          + '</div>');
+          throw error;
+      }
+      const el = document.getElementById('vis');
+      vegaEmbed("#vis", spec, embedOpt)
+        .catch(error => showError(el, error));
+    })(vegaEmbed);
+
+  </script>
+</body>
+</html>
