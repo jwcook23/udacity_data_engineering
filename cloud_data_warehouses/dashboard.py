@@ -3,6 +3,7 @@ import webbrowser
 import psycopg2
 import pandas as pd
 import altair as alt
+from vega_datasets import data
 
 conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
 cur = conn.cursor()
@@ -93,28 +94,46 @@ def location():
     # derive state from location extrafter comma, first dash
     # extract state from text after common then before dash
     # ex: Minneapolis-St. Paul-Bloomington, MN-WI -> MN
-    query = """"""
-    # TODO: does this plot states using initials?
-    from vega_datasets import data
-    states = alt.topo_feature(data.us_10m.url, 'states')
-    source = data.population_engineers_hurricanes.url
-    variable_list = ['population', 'engineers', 'hurricanes']
+    query = """
+    WITH _parsed AS (
+        SELECT
+            TRIM(
+                SPLIT_PART(
+                    SPLIT_PART(location, ',', 2),
+                    '-',
+                    1
+                )
+            ) AS abbr
+        FROM songplays
+    )
+    SELECT 
+        abbr,
+        COUNT(abbr) AS play_count
+    FROM _parsed
+    GROUP BY abbr
+    """
+    plays = pd.read_sql(query, conn)
+    states = alt.topo_feature(data.us_10m.url, feature='states')
 
-    alt.Chart(states).mark_geoshape().encode(
-        alt.Color(alt.repeat('row'), type='quantitative')
+    # get ANSI standard id field with abbr to match to us_10m dataset
+    ansi = pd.read_csv('https://www2.census.gov/geo/docs/reference/state.txt', sep='|')
+    ansi.columns = ['id', 'abbr', 'state', 'statens']
+    ansi = ansi[['id', 'abbr', 'state']]
+    ansi = ansi.merge(plays, left_on='abbr', right_on='abbr', how='right')
+
+    base = alt.Chart(states).mark_geoshape(fill='lightgray', stroke='black', strokeWidth=0.5)
+
+    chart = alt.Chart(states).mark_geoshape(stroke='black').encode(
+        color='play_count:Q'
     ).transform_lookup(
         lookup='id',
-        from_=alt.LookupData(source, 'id', variable_list)
+        from_=alt.LookupData(ansi, 'id', ['play_count'])
     ).properties(
         width=500,
         height=300
-    ).project(
-        type='albersUsa'
-    ).repeat(
-        row=variable_list
-    ).resolve_scale(
-        color='independent'
-    )
+    ).project('albersUsa')
+
+    return base + chart
 
 # position each chart into final dashboard
 # TODO: associated played songs (because you also listed to)
