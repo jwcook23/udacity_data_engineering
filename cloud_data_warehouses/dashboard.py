@@ -1,5 +1,6 @@
 import os
 import webbrowser
+from altair.vegalite.v4.schema.core import TitleParams
 import psycopg2
 import pandas as pd
 import altair as alt
@@ -8,8 +9,20 @@ from vega_datasets import data as vega_data
 conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
 cur = conn.cursor()
 
+def dashboard_title():
+    '''Create empty graph to use as the overall dashboard title.'''
+    chart = alt.Chart(
+        pd.DataFrame({'x': [None], 'y':[None]}), 
+        title=alt.TitleParams('User Play Dashboard',fontSize=20)
+    ).mark_bar().encode(
+        x=alt.X('x', axis=None),
+        y=alt.Y('y', axis=None),
+        opacity=alt.value(0)
+    )
+    return chart
+
 # free vs paid 
-def level():
+def user_subscription():
     query = """
     WITH _total AS (
         SELECT
@@ -26,13 +39,13 @@ def level():
 
     source = pd.read_sql(query, conn)
 
-    chart = alt.Chart(source, title='Service Level')
+    chart = alt.Chart(source, title='User Subscription Level')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%')),
-        y=alt.Y('level')
+        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent'),
+        y=alt.Y('level', title='Level'),
+        color='level'
     )
-    chart = chart.properties(height=100)
 
     text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
     text = text.encode(
@@ -43,11 +56,12 @@ def level():
 
     return chart + text
 
-def datetrend():
+def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
     query = """
     SELECT
         time.day,
+        MIN(weekday) AS weekday,
         COUNT(songplays.songplay_id) AS count
     FROM songplays
     LEFT JOIN time
@@ -59,14 +73,26 @@ def datetrend():
     chart = alt.Chart(source, title = 'Song Play Date Trend')
     chart = chart.mark_line()
     chart = chart.encode(
-        x='day',
-        y='count'
+        x=alt.X('day', title='Day'),
+        y=alt.X('count', title='Play Count'),
+        color=alt.value('black')
     )
-    chart = chart.properties(height=200)
 
-    return chart
+    # classify weekend as starting on saturday
+    weekend = source[source['weekday']==6].copy()
+    weekend['Time of Week']='Weekend'
+    weekend['stop'] = weekend['day']+2
+    rect = alt.Chart(weekend).mark_rect().encode(
+        x='day',
+        x2='stop',
+        opacity=alt.value(0.4),
+        color='Time of Week:N'
+        # color=alt.value('red')
+    )
 
-def hourbucket():
+    return chart + rect
+
+def play_distribution():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
     query = """
     SELECT
@@ -82,14 +108,13 @@ def hourbucket():
     chart = alt.Chart(source, title='Song Play Hourly Distribution')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('hour', bin=alt.BinParams(step=1), axis=alt.Axis(format='.0f')),
-        y='count'
+        x=alt.X('hour', bin=alt.BinParams(step=1), axis=alt.Axis(format='.0f'), title='Hour'),
+        y=alt.X('count', title='Play Count')
     )
-    chart = chart.properties(height=150)
 
     return chart
 
-def location():
+def play_location():
 
     # derive state from location extrafter comma, first dash
     # extract state from text after common then before dash
@@ -126,58 +151,86 @@ def location():
     state_id = state_id.merge(source, left_on='abbr', right_on='abbr', how='right')
 
     # create base map of US states to plot states with no play_count
-    base = alt.Chart(states).mark_geoshape(fill='white', stroke='black', strokeWidth=0.5)
+    base = alt.Chart(states, title='Song Plays by State')
+    base = base.mark_geoshape(fill='white', stroke='black', strokeWidth=0.5)
 
     # create outlines of states with heatmap of play_count
-    chart = alt.Chart(states).mark_geoshape(stroke='black').encode(
+    chart = alt.Chart(states)
+    chart = chart.mark_geoshape(stroke='black')
+    chart = chart.encode(
         color=alt.Color('play_count:Q', title='Play Count', scale=alt.Scale(scheme='lightmulti'))
-    ).transform_lookup(
+    )
+    chart = chart.transform_lookup(
         lookup='id',
         from_=alt.LookupData(state_id, 'id', ['play_count'])
-    ).properties(
-        width=500,
-        height=300
     )
     # add appropriate zoom/view (projection)
     chart = chart.project('albersUsa')
 
     return base + chart
 
-
-def top_users():
+def user_top25pct():
 
     query = """
-    SELECT 
+    SELECT
         user_id,
-        COUNT(songplay_id) as playcount
-    FROM "songplays" 
-    GROUP BY user_id
+        level,
+        playcount
+    FROM (
+        WITH _count AS(
+            SELECT 
+                songplays.user_id,
+                COUNT(songplay_id) AS playcount,
+                MAX(users.level) AS level
+            FROM songplays
+            INNER JOIN users
+                ON users.user_id = songplays.user_id
+            GROUP BY songplays.user_id
+            ORDER BY playcount DESC
+        )
+        SELECT
+            user_id,
+            level,
+            playcount,
+            PERCENT_RANK() OVER (
+                ORDER BY playcount
+            ) AS _rank
+        FROM _count
+    ) AS _percentile
+    WHERE _percentile._rank>=0.75
+    ORDER BY playcount DESC
     """
     source = pd.read_sql(query, conn)
 
-    # source = data.movies.url
-
-    # top 10
-    chart = alt.Chart(
-        source,
-    ).mark_bar().encode(
-        x=alt.X('user_id:N', sort='-y'),
-        y=alt.Y('playcount:Q'),
-        color=alt.Color('playcount:Q')
-    ).transform_window(
-        rank='rank(playcount)',
-        sort=[alt.SortField('playcount', order='descending')]
-    ).transform_filter(
-        (alt.datum.rank < 25)
+    chart = alt.Chart(source, title='Top 25% of Users')
+    chart = chart.mark_bar()
+    chart = chart.encode(
+        x=alt.X('user_id:N', sort='-y', title='User ID', axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y('playcount:Q', title='Play Count'),
+        color='level'
     )
 
     return chart
 
 # position each chart into final dashboard
-# TODO: associated played songs (because you also listed to)
-# TODO: trending songs, trending artists
-# TODO: text over heatmap artist country? https://altair-viz.github.io/gallery/layered_heatmap_text.html
-dashboard = (level() & hourbucket() & datetrend()) | (location() & top_users()).resolve_scale(color='independent')
+dashboard = alt.hconcat(
+    # column 1
+    alt.vconcat(
+        alt.hconcat(
+            alt.vconcat(
+                dashboard_title().properties(width=200, height=1),
+                user_subscription().properties(width=200, height=100), 
+            ),
+            user_top25pct().properties(width=300, height=150)
+        ),
+        play_distribution().properties(width=400, height=180),
+        play_trend().properties(width=400, height=100)
+    ).resolve_scale(color='independent'),
+    # column 2
+        play_location().properties(width=450, height=250)
+    # TODO: something with session id
+    # TODO: something with user agent
+)
 
 # open dashboard in webbrowser
 url = os.path.join(os.getcwd(),'dashboard.html')
