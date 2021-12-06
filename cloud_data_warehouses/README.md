@@ -194,3 +194,7 @@ Redshift cluster sparkify has been deleted/does not exist.
 Detaching S3 Policy from IAM Role songplays_S3toRedshiftStaging.
 Deleting IAM Role songplays_S3toRedshiftStaging.
 ```
+
+## Dashboard
+
+Aggregations performed server side to fully utilize performance of Redshift's columnar data store.

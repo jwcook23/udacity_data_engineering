@@ -212,6 +212,83 @@ def user_top25pct():
 
     return chart
 
+def user_agent():
+
+    # TODO: move case to ETL process
+    query = """
+    SELECT
+        os,
+        browser,
+        COUNT(songplay_id) AS playcount
+    FROM (
+        SELECT
+            songplay_id,
+        CASE
+            WHEN user_agent LIKE '%Windows%' THEN 'Windows'
+            WHEN user_agent LIKE '%Linux%' THEN 'Linux'
+            WHEN user_agent LIKE '%Macintosh%' THEN 'Mac'
+            WHEN user_agent LIKE '%iPhone%' THEN 'iPhone'
+        END AS os,
+        CASE
+            WHEN user_agent LIKE '%Chrome%' THEN 'Chrome'
+            WHEN user_agent LIKE '%Firefox%' THEN 'Firefox'
+            WHEN user_agent LIKE '%Trident%' THEN 'Internet Explorer'
+            WHEN user_agent LIKE '%Mobile%' THEN 'Mobile'
+            WHEN user_agent LIKE '%Safari%' THEN 'Safari'
+        END AS browser
+        FROM songplays
+    ) AS _agent
+    GROUP BY _agent.os, _agent.browser
+    """
+
+    source = pd.read_sql(query, conn)
+
+    base = alt.Chart(source, title='User Agent')
+    base = base.encode(
+        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System'),
+        alt.Y('browser', scale=alt.Scale(paddingInner=0), title='Browser'),
+    )
+
+    heatmap = base.mark_rect().encode(
+        color=alt.Color('playcount',
+            scale=alt.Scale(scheme='viridis'), title='Play Count'
+        )
+    )
+
+    text = base.mark_text(baseline='middle').encode(
+        text='playcount',
+        color=alt.condition(
+            alt.datum.playcount > 100,
+            alt.value('black'),
+            alt.value('white')
+        )
+    )
+
+    return heatmap + text
+
+def session_playcount():
+
+    query = """
+    SELECT
+        COUNT(songplay_id) AS playcount,
+        MAX(level) as level,
+        user_id,
+        session_id
+    FROM songplays
+        GROUP BY user_id, session_id
+    """
+
+    source = pd.read_sql(query, conn)
+
+    chart = alt.Chart(source, title='Play Count by Session')
+    chart = chart.mark_boxplot()
+    chart = chart.encode(
+        x=alt.X('playcount', title='Play Count'),
+        y=alt.Y('level', title='Level')
+    )
+
+    return chart
+
 # position each chart into final dashboard
 dashboard = alt.hconcat(
     # column 1
@@ -227,9 +304,11 @@ dashboard = alt.hconcat(
         play_trend().properties(width=400, height=100)
     ).resolve_scale(color='independent'),
     # column 2
-        play_location().properties(width=450, height=250)
-    # TODO: something with session id
-    # TODO: something with user agent
+        alt.vconcat(
+            play_location().properties(width=450, height=250),
+            user_agent().properties(width=450, height=200),
+            session_playcount().properties(width=450, height=50)
+        ).resolve_scale(color='independent')
 )
 
 # open dashboard in webbrowser
