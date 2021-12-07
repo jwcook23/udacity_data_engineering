@@ -58,6 +58,7 @@ def user_subscription():
 
 def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
+    # TODO: add free vs paid
     query = """
     SELECT
         time.day,
@@ -171,6 +172,7 @@ def play_location():
 
 def user_top25pct():
 
+    # TODO: deduplicate users with multiple levels
     query = """
     SELECT
         user_id,
@@ -267,7 +269,7 @@ def user_agent():
     return heatmap + text
 
 def session_playcount():
-
+    # TODO: deduplicate users with multiple levels
     query = """
     SELECT
         COUNT(songplay_id) AS playcount,
