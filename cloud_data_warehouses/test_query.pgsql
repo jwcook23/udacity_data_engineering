@@ -3,9 +3,14 @@
 -- target: length of time before upgrading
 -- KPI: churn rate: paid to free
 
--- TODO: document this query in steps for user 16
--- TODO: change MAX(level) & MAX(leve_current) to use FIRST_VALUE
-
+-- TODO: move to ETL process to prevent complicated end user query
+-- aggregations by user_id for each subscription level
+-- user_id: identifier for each user
+-- user_level_index: increases for previous subscription levels, current level = 1
+-- level: subscription level
+-- level_sessions: sessions at level
+-- play_count: plays at level
+-- level_days: time user spent at level, according to song plays
 
 WITH 
 -- session summary for each user
@@ -93,7 +98,7 @@ _group_level AS (
         _level_id
 )
 
--- SELECT * FROM _session_summary
+-- SELECT * FROM _session_summary ORDER BY start_time ASC
 -- SELECT * FROM _session_previous
 -- SELECT * FROM _level_change
 -- SELECT * FROM _level_id
@@ -102,12 +107,14 @@ _group_level AS (
 -- aggreate user statistics by user level change
 SELECT
     user_id,
-    user_level_id,
-    MAX(level_current) AS level_current,
-    MAX(level_previous) AS level_previous,
-    MAX(user_session_id)-MIN(user_session_id) AS level_sessions,
+    RANK() OVER (
+        PARTITION BY user_id
+        ORDER BY user_level_id DESC
+    ) AS user_level_index,
+    MAX(level_current) AS level,
+    MAX(user_session_id)-MIN(user_session_id)+1 AS level_sessions,
     SUM(play_count) AS play_count,
-    DATE_PART('day',MAX(start_time)-MIN(start_time)) AS level_time
+    DATE_PART('day',MAX(start_time)-MIN(start_time)) AS level_days
 FROM
     _group_level
 GROUP BY 
