@@ -1,6 +1,5 @@
 import os
 import webbrowser
-from altair.vegalite.v4.schema.core import TitleParams
 import psycopg2
 import pandas as pd
 import altair as alt
@@ -21,8 +20,7 @@ def dashboard_title():
     )
     return chart
 
-# free vs paid 
-def user_subscription():
+def user_level():
     query = """
     WITH _total AS (
         SELECT
@@ -87,13 +85,46 @@ def play_trend():
         x='day',
         x2='stop',
         opacity=alt.value(0.4),
-        color='Time of Week:N'
-        # color=alt.value('red')
+        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='top'), title=None)
     )
 
     return chart + rect
 
-def play_distribution():
+def play_level():
+    query = """
+    WITH _total AS (
+        SELECT
+            level,
+            COUNT(*) AS _count
+        FROM songplays
+        GROUP BY level
+    ) 
+    SELECT
+        level,
+        _count / (SELECT SUM(_count) FROM _total) AS percent
+    FROM _total;
+    """
+
+    source = pd.read_sql(query, conn)
+
+    chart = alt.Chart(source, title='Play Subscription Level')
+    chart = chart.mark_bar()
+    chart = chart.encode(
+        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent'),
+        y=alt.Y('level', title='Level'),
+        color=alt.Color('level', legend=None),
+    )
+
+    text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
+    text = text.encode(
+        x=alt.X('percent', stack='zero'),
+        y=alt.Y('level'),
+        text=alt.Text('percent', format='.0%')
+    )
+
+    return chart + text
+    
+def play_hour():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
     query = """
     SELECT
@@ -109,7 +140,7 @@ def play_distribution():
     chart = alt.Chart(source, title='Song Play Hourly Distribution')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('hour', bin=alt.BinParams(step=1), axis=alt.Axis(format='.0f'), title='Hour'),
+        x=alt.X('hour:Q', bin=alt.BinParams(step=1), axis=alt.Axis(format='.0f'), title='Hour'),
         y=alt.X('count', title='Play Count')
     )
 
@@ -298,17 +329,22 @@ dashboard = alt.hconcat(
         alt.hconcat(
             alt.vconcat(
                 dashboard_title().properties(width=200, height=1),
-                user_subscription().properties(width=200, height=100), 
-            ),
+                user_level().properties(width=200, height=100), 
+            ),                
             user_top25pct().properties(width=300, height=150)
         ),
-        play_distribution().properties(width=400, height=180),
-        play_trend().properties(width=400, height=100)
+        alt.hconcat(
+            play_level().properties(width=200, height=100),
+            user_agent().properties(width=100, height=100)
+        ).resolve_scale(color='independent'),
+        alt.hconcat(
+            play_hour().properties(width=250, height=100),
+            play_trend().properties(width=300, height=100)
+        )
     ).resolve_scale(color='independent'),
     # column 2
         alt.vconcat(
             play_location().properties(width=450, height=250),
-            user_agent().properties(width=450, height=200),
             session_playcount().properties(width=450, height=50)
         ).resolve_scale(color='independent')
 )
