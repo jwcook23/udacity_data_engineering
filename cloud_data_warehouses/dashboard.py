@@ -56,7 +56,6 @@ def user_level():
 
 def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
-    # TODO: add free vs paid
     query = """
     SELECT
         time.day,
@@ -278,7 +277,7 @@ def user_agent():
 
     base = alt.Chart(source, title='User Agent')
     base = base.encode(
-        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System'),
+        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System', axis=alt.Axis(labelAngle=-45)),
         alt.Y('browser', scale=alt.Scale(paddingInner=0), title='Browser'),
     )
 
@@ -322,6 +321,43 @@ def session_playcount():
 
     return chart
 
+def user_engagement():
+
+    with open('user_engagement.pgsql') as fh:
+        query = fh.read()
+
+    source = pd.read_sql(query, conn)
+
+    # target: number of sessions before upgrading
+    # target: number of plays before upgrading
+    # target: length of time before upgrading
+    # KPI: bounce rate: 
+    # KPI: churn rate: paid to free
+    # KPI: session length (new query needed)
+
+    # overall user aggregation
+    user = source.groupby('user_id')
+    user = user.agg({
+        'level_sessions': sum,
+    })
+
+    # single stat panel calculations
+    stat = pd.DataFrame.from_dict(
+        {
+            # footprint
+            'Number of Users': [len(user)],
+            # users with only one session
+            'Bounce Rate': [sum(user['level_sessions']==1)/len(user)*100],
+            # users that downgraded from paid to free
+            'Level Downgrade': [None]
+        }, orient='index', columns=['Value'])
+
+    base = alt.Chart(source, title='User Agent')
+    base = base.encode(
+        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System', axis=alt.Axis(labelAngle=-45)),
+        alt.Y('browser', scale=alt.Scale(paddingInner=0), title='Browser'),
+    )
+
 # position each chart into final dashboard
 dashboard = alt.hconcat(
     # column 1
@@ -335,15 +371,16 @@ dashboard = alt.hconcat(
         ),
         alt.hconcat(
             play_level().properties(width=200, height=100),
-            user_agent().properties(width=100, height=100)
+            user_agent().properties(width=175, height=100)
         ).resolve_scale(color='independent'),
         alt.hconcat(
             play_hour().properties(width=250, height=100),
             play_trend().properties(width=300, height=100)
-        )
+        ).resolve_scale(color='independent')
     ).resolve_scale(color='independent'),
     # column 2
         alt.vconcat(
+            user_engagement().properties(width=450, height=250),
             play_location().properties(width=450, height=250),
             session_playcount().properties(width=450, height=50)
         ).resolve_scale(color='independent')

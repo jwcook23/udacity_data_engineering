@@ -1,16 +1,14 @@
--- target: number of sessions before upgrading
--- target: number of plays before upgrading
--- target: length of time before upgrading
--- KPI: churn rate: paid to free
-
--- TODO: move to ETL process to prevent complicated end user query
--- aggregations by user_id for each subscription level
+-- Aggregations by user_id for each subscription level
+-- Return
+-- -------
 -- user_id: identifier for each user
 -- user_level_index: increases for previous subscription levels, current level = 1
 -- level: subscription level
 -- level_sessions: sessions at level
 -- play_count: plays at level
 -- level_days: time user spent at level, according to song plays
+
+-- #TODO: move to ETL process to prevent complicated end user query
 
 WITH 
 -- session summary for each user
