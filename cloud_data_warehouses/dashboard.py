@@ -1,5 +1,6 @@
 import os
 import webbrowser
+from altair.vegalite.v4.schema.channels import StrokeOpacity
 import psycopg2
 import pandas as pd
 import altair as alt
@@ -328,35 +329,64 @@ def user_engagement():
 
     source = pd.read_sql(query, conn)
 
+    # user stats
+    source = source.sort_values(by=['user_id','user_level_index'])
+    user = source.groupby(['user_id'])
+    agg = pd.DataFrame.from_dict(
+        {
+            # footprint
+            'Users': '{}'.format(len(user)),
+            # users with only one session
+            'Bounce Rate': '{0:.1f}%'.format(
+                sum(
+                    (user.size()==1) & 
+                    (user.nth(0)['level']=='free') & 
+                    (user.nth(0)['level_sessions']==1)
+                )/user.ngroups*100
+            ),
+            # users that upgraded from free to paid
+            'Conversion Rate': '{0:.1f}%'.format(
+                sum(
+                    (user.nth(0)['level']=='paid') & (user.nth(1)['level']=='free')
+                )/user.ngroups*100
+            ),
+            # users that return for multiple visits
+            'Return Rate': '{0:.1f}%'.format(
+                sum(user['level_sessions'].sum()>1)/user.ngroups*100
+            )
+        }, orient='index', columns=['Value']
+    )
+    agg['X'] = range(0,len(agg))
+    agg['Y'] = 0
+    agg.index.name = 'Stat'
+    agg = agg.reset_index()
+
+    #TODO: sessions length boxplot by level
+    #TODO: sessions per visit boxplot by level
+
     # target: number of sessions before upgrading
     # target: number of plays before upgrading
     # target: length of time before upgrading
-    # KPI: bounce rate: 
-    # KPI: churn rate: paid to free
     # KPI: session length (new query needed)
 
-    # overall user aggregation
-    user = source.groupby('user_id')
-    user = user.agg({
-        'level_sessions': sum,
-    })
+    # base chart
+    chart = alt.Chart(agg, title='User Engagement')
 
-    # single stat panel calculations
-    stat = pd.DataFrame.from_dict(
-        {
-            # footprint
-            'Number of Users': [len(user)],
-            # users with only one session
-            'Bounce Rate': [sum(user['level_sessions']==1)/len(user)*100],
-            # users that downgraded from paid to free
-            'Level Downgrade': [None]
-        }, orient='index', columns=['Value'])
-
-    base = alt.Chart(source, title='User Agent')
-    base = base.encode(
-        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System', axis=alt.Axis(labelAngle=-45)),
-        alt.Y('browser', scale=alt.Scale(paddingInner=0), title='Browser'),
+    # value
+    value = chart.encode(
+        alt.X('X', scale=alt.Scale(domain=[-0.5, len(agg)]), axis=None),
+        alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None),
     )
+    value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
+
+    # label
+    label = chart.encode(
+        alt.X('X', scale=alt.Scale(domain=[-0.5, len(agg)]), axis=None),
+        alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None)
+    )
+    label = value.mark_text(baseline='top').encode(text='Stat')
+
+    return value + label
 
 # position each chart into final dashboard
 dashboard = alt.hconcat(
@@ -380,11 +410,11 @@ dashboard = alt.hconcat(
     ).resolve_scale(color='independent'),
     # column 2
         alt.vconcat(
-            user_engagement().properties(width=450, height=250),
+            user_engagement().properties(width=450, height=25),
             play_location().properties(width=450, height=250),
             session_playcount().properties(width=450, height=50)
         ).resolve_scale(color='independent')
-)
+).configure_view(strokeOpacity=0)
 
 # open dashboard in webbrowser
 url = os.path.join(os.getcwd(),'dashboard.html')
