@@ -8,8 +8,6 @@
 -- play_count: plays at level
 -- level_days: time user spent at level, according to song plays
 
--- #TODO: move to ETL process to prevent complicated end user query
-
 WITH 
 -- session summary for each user
 _session_summary AS (

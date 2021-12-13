@@ -19,7 +19,8 @@ def dashboard_title():
         y=alt.Y('y', axis=None),
         opacity=alt.value(0)
     )
-    return chart
+
+    return chart.properties(width=200, height=1)
 
 def user_level():
     query = """
@@ -41,7 +42,7 @@ def user_level():
     chart = alt.Chart(source, title='User Subscription Level')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent'),
+        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Users'),
         y=alt.Y('level', title='Level'),
         color='level'
     )
@@ -53,7 +54,7 @@ def user_level():
         text=alt.Text('percent', format='.0%')
     )
 
-    return chart + text
+    return (chart + text).properties(width=250, height=100)
 
 def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
@@ -73,7 +74,7 @@ def play_trend():
     chart = chart.mark_line()
     chart = chart.encode(
         x=alt.X('day', title='Day'),
-        y=alt.X('count', title='Play Count'),
+        y=alt.X('count', title='Plays'),
         color=alt.value('black')
     )
 
@@ -85,10 +86,10 @@ def play_trend():
         x='day',
         x2='stop',
         opacity=alt.value(0.4),
-        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='top'), title=None)
+        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='bottom'), title=None)
     )
 
-    return chart + rect
+    return (chart + rect).properties(width=300, height=100)
 
 def play_level():
     query = """
@@ -110,7 +111,7 @@ def play_level():
     chart = alt.Chart(source, title='Play Subscription Level')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent'),
+        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Plays'),
         y=alt.Y('level', title='Level'),
         color=alt.Color('level', legend=None),
     )
@@ -122,7 +123,7 @@ def play_level():
         text=alt.Text('percent', format='.0%')
     )
 
-    return chart + text
+    return (chart + text).properties(width=250, height=100)
     
 def play_hour():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
@@ -141,10 +142,10 @@ def play_hour():
     chart = chart.mark_bar()
     chart = chart.encode(
         x=alt.X('hour:Q', bin=alt.BinParams(step=1), axis=alt.Axis(format='.0f'), title='Hour'),
-        y=alt.X('count', title='Play Count')
+        y=alt.X('count', title='Plays')
     )
 
-    return chart
+    return chart.properties(width=250, height=100)
 
 def play_location():
 
@@ -190,7 +191,7 @@ def play_location():
     chart = alt.Chart(states)
     chart = chart.mark_geoshape(stroke='black')
     chart = chart.encode(
-        color=alt.Color('play_count:Q', title='Play Count', scale=alt.Scale(scheme='lightmulti'))
+        color=alt.Color('play_count:Q', title='Plays', scale=alt.Scale(scheme='lightmulti'))
     )
     chart = chart.transform_lookup(
         lookup='id',
@@ -199,7 +200,7 @@ def play_location():
     # add appropriate zoom/view (projection)
     chart = chart.project('albersUsa')
 
-    return base + chart
+    return (base + chart).properties(width=450, height=250)
 
 def user_top25pct():
 
@@ -238,12 +239,12 @@ def user_top25pct():
     chart = alt.Chart(source, title='Top 25% of Users')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('user_id:N', sort='-y', title='User ID', axis=alt.Axis(labelAngle=-45)),
-        y=alt.Y('playcount:Q', title='Play Count'),
-        color='level'
+        x=alt.X('user_id:N', sort='-y', title='User ID', axis=alt.Axis(labelAngle=60)),
+        y=alt.Y('playcount:Q', title='Plays'),
+        color=alt.Color('level', legend=alt.Legend(orient='bottom'))
     )
 
-    return chart
+    return chart.properties(width=250, height=150)
 
 def user_agent():
 
@@ -265,7 +266,7 @@ def user_agent():
         CASE
             WHEN user_agent LIKE '%Chrome%' THEN 'Chrome'
             WHEN user_agent LIKE '%Firefox%' THEN 'Firefox'
-            WHEN user_agent LIKE '%Trident%' THEN 'Internet Explorer'
+            WHEN user_agent LIKE '%Trident%' THEN 'IE'
             WHEN user_agent LIKE '%Mobile%' THEN 'Mobile'
             WHEN user_agent LIKE '%Safari%' THEN 'Safari'
         END AS browser
@@ -284,7 +285,7 @@ def user_agent():
 
     heatmap = base.mark_rect().encode(
         color=alt.Color('playcount',
-            scale=alt.Scale(scheme='viridis'), title='Play Count'
+            scale=alt.Scale(scheme='viridis'), title='Plays'
         )
     )
 
@@ -297,44 +298,41 @@ def user_agent():
         )
     )
 
-    return heatmap + text
+    return (heatmap + text).properties(width=175, height=100)
 
-def session_playcount():
-    # TODO: deduplicate users with multiple levels
-    query = """
-    SELECT
-        COUNT(songplay_id) AS playcount,
-        MAX(level) as level,
-        user_id,
-        session_id
-    FROM songplays
-        GROUP BY user_id, session_id
-    """
+def user_comparison(user_levels):
 
-    source = pd.read_sql(query, conn)
+    #TODO: sessions length boxplot by level
+    #TODO: sessions per visit boxplot by level
 
-    chart = alt.Chart(source, title='Play Count by Session')
+    # boxplot: session count by level
+    # boxplot: play count by level
+    # target: number of sessions before upgrading
+    # target: number of plays before upgrading
+    # target: length of time before upgrading
+
+    chart = alt.Chart(user_levels, title='User Level Comparison')
     chart = chart.mark_boxplot()
     chart = chart.encode(
-        x=alt.X('playcount', title='Play Count'),
+        x=alt.X(alt.repeat("column"), type='quantitative'),
         y=alt.Y('level', title='Level')
+    ).properties(
+        width=225,
+        height=50
+    ).repeat(
+        column=['play_count', 'level_sessions']
     )
 
     return chart
 
-def user_engagement():
+def user_stats(user_levels):
 
-    with open('user_engagement.pgsql') as fh:
-        query = fh.read()
-
-    source = pd.read_sql(query, conn)
-
-    # user stats
-    source = source.sort_values(by=['user_id','user_level_index'])
+    # get stats for each user by subscription level
+    source = user_levels.sort_values(by=['user_id','user_level_index'])
     user = source.groupby(['user_id'])
     agg = pd.DataFrame.from_dict(
         {
-            # footprint
+            # user count
             'Users': '{}'.format(len(user)),
             # users with only one session
             'Bounce Rate': '{0:.1f}%'.format(
@@ -361,60 +359,38 @@ def user_engagement():
     agg.index.name = 'Stat'
     agg = agg.reset_index()
 
-    #TODO: sessions length boxplot by level
-    #TODO: sessions per visit boxplot by level
-
-    # target: number of sessions before upgrading
-    # target: number of plays before upgrading
-    # target: length of time before upgrading
-    # KPI: session length (new query needed)
-
-    # base chart
+    # single stat panel
     chart = alt.Chart(agg, title='User Engagement')
-
-    # value
     value = chart.encode(
         alt.X('X', scale=alt.Scale(domain=[-0.5, len(agg)]), axis=None),
         alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None),
     )
     value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
-
-    # label
-    label = chart.encode(
-        alt.X('X', scale=alt.Scale(domain=[-0.5, len(agg)]), axis=None),
-        alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None)
-    )
     label = value.mark_text(baseline='top').encode(text='Stat')
 
-    return value + label
+    return (value + label).properties(width=400, height=50)
+
+# read user_engagement query
+# TODO: move to ETL process to prevent complicated end user query
+with open('user_levels.pgsql') as fh:
+    user_levels = fh.read()
+user_levels = pd.read_sql(user_levels, conn)
 
 # position each chart into final dashboard
-dashboard = alt.hconcat(
-    # column 1
-    alt.vconcat(
-        alt.hconcat(
-            alt.vconcat(
-                dashboard_title().properties(width=200, height=1),
-                user_level().properties(width=200, height=100), 
-            ),                
-            user_top25pct().properties(width=300, height=150)
-        ),
-        alt.hconcat(
-            play_level().properties(width=200, height=100),
-            user_agent().properties(width=175, height=100)
-        ).resolve_scale(color='independent'),
-        alt.hconcat(
-            play_hour().properties(width=250, height=100),
-            play_trend().properties(width=300, height=100)
-        ).resolve_scale(color='independent')
-    ).resolve_scale(color='independent'),
-    # column 2
-        alt.vconcat(
-            user_engagement().properties(width=450, height=25),
-            play_location().properties(width=450, height=250),
-            session_playcount().properties(width=450, height=50)
-        ).resolve_scale(color='independent')
-).configure_view(strokeOpacity=0)
+dashboard = (
+    (
+        (dashboard_title() | user_stats(user_levels)) &
+        (user_level() | play_level()) &
+        user_comparison(user_levels) & 
+        (play_hour() | play_trend()).resolve_scale(color='independent')
+    ) |
+    (
+        (user_top25pct() | user_agent()) &
+        play_location()
+    ).resolve_scale(color='independent')
+)
+
+dashboard = dashboard.configure_view(strokeOpacity=0)
 
 # open dashboard in webbrowser
 url = os.path.join(os.getcwd(),'dashboard.html')
