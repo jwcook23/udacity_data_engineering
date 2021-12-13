@@ -11,16 +11,62 @@ cur = conn.cursor()
 
 def dashboard_title():
     '''Create empty graph to use as the overall dashboard title.'''
-    chart = alt.Chart(
-        pd.DataFrame({'x': [None], 'y':[None]}), 
-        title=alt.TitleParams('User Play Dashboard',fontSize=20)
-    ).mark_bar().encode(
-        x=alt.X('x', axis=None),
-        y=alt.Y('y', axis=None),
-        opacity=alt.value(0)
-    )
 
-    return chart.properties(width=200, height=1)
+    # return chart.properties(width=200, height=50)
+    source = pd.DataFrame({'X': [0], 'Y': [0], 'Title': ['User Play Dashboard']})
+    chart = alt.Chart(source)
+    label = chart.encode(
+        alt.X('X', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None),
+        alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None),
+    )
+    label = label.mark_text(baseline='bottom', size=26, fontWeight='bold').encode(text='Title')
+
+    return (label).properties(width=200, height=50)
+
+def user_stats(user_levels):
+
+    # get stats for each user by subscription level
+    source = user_levels.sort_values(by=['User ID','User Level Index'])
+    user = source.groupby(['User ID'])
+    agg = pd.DataFrame.from_dict(
+        {
+            # user count
+            'Users': '{}'.format(len(user)),
+            # users with only one session
+            'Bounce Rate': '{0:.1f}%'.format(
+                sum(
+                    (user.size()==1) & 
+                    (user.nth(0)['Level']=='free') & 
+                    (user.nth(0)['Level Sessions']==1)
+                )/user.ngroups*100
+            ),
+            # users that upgraded from free to paid
+            'Conversion Rate': '{0:.1f}%'.format(
+                sum(
+                    (user.nth(0)['Level']=='paid') & (user.nth(1)['Level']=='free')
+                )/user.ngroups*100
+            ),
+            # users that return for multiple visits
+            'Return Rate': '{0:.1f}%'.format(
+                sum(user['Level Sessions'].sum()>1)/user.ngroups*100
+            )
+        }, orient='index', columns=['Value']
+    )
+    agg['X'] = range(0,len(agg))
+    agg['Y'] = 0
+    agg.index.name = 'Stat'
+    agg = agg.reset_index()
+
+    # single stat panel
+    chart = alt.Chart(agg, title='User Engagement')
+    value = chart.encode(
+        alt.X('X', scale=alt.Scale(domain=[-0.5, len(agg)]), axis=None),
+        alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None),
+    )
+    value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
+    label = value.mark_text(baseline='top').encode(text='Stat')
+
+    return (value + label).properties(width=400, height=50)
 
 def user_level():
     query = """
@@ -89,7 +135,7 @@ def play_trend():
         color=alt.Color('Time of Week:N',legend=alt.Legend(orient='bottom'), title=None)
     )
 
-    return (chart + rect).properties(width=300, height=100)
+    return (chart + rect).properties(width=250, height=100)
 
 def play_level():
     query = """
@@ -241,7 +287,7 @@ def user_top25pct():
     chart = chart.encode(
         x=alt.X('user_id:N', sort='-y', title='User ID', axis=alt.Axis(labelAngle=60)),
         y=alt.Y('playcount:Q', title='Plays'),
-        color=alt.Color('level', legend=alt.Legend(orient='bottom'))
+        color=alt.Color('level', legend=alt.Legend(orient='bottom'), title='Level')
     )
 
     return chart.properties(width=250, height=150)
@@ -285,7 +331,8 @@ def user_agent():
 
     heatmap = base.mark_rect().encode(
         color=alt.Color('playcount',
-            scale=alt.Scale(scheme='viridis'), title='Plays'
+            scale=alt.Scale(scheme='viridis'), title='Plays',
+            legend=alt.Legend(orient='bottom')
         )
     )
 
@@ -302,79 +349,48 @@ def user_agent():
 
 def user_comparison(user_levels):
 
-    #TODO: sessions length boxplot by level
-    #TODO: sessions per visit boxplot by level
+    # determine users that upgraded from free
+    # TODO: handle multiple levels
+    # TODO: see how many users start out paid
+    # TODO: add to single stat panel ?
+    source = user_levels.sort_values(by=['User ID','User Level Index'])
+    upgrade = source.groupby(['User ID'])
+    upgrade = (upgrade.nth(0)['Level']=='paid') & (upgrade.nth(1)['Level']=='free')
+    upgrade.name = 'Upgrade'
+    source = source.merge(upgrade,left_on='User ID', right_on='User ID', how='left')
 
-    # boxplot: session count by level
-    # boxplot: play count by level
-    # target: number of sessions before upgrading
-    # target: number of plays before upgrading
-    # target: length of time before upgrading
-
-    chart = alt.Chart(user_levels, title='User Level Comparison')
+    chart = alt.Chart(source, title='User Level Comparison')
     chart = chart.mark_boxplot()
     chart = chart.encode(
         x=alt.X(alt.repeat("column"), type='quantitative'),
-        y=alt.Y('level', title='Level')
+        y=alt.Y('Level', title='Level')
     ).properties(
-        width=225,
+        width=250,
         height=50
     ).repeat(
-        column=['play_count', 'level_sessions']
+        column=['Plays', 'Level Sessions']
     )
 
     return chart
 
-def user_stats(user_levels):
-
-    # get stats for each user by subscription level
-    source = user_levels.sort_values(by=['user_id','user_level_index'])
-    user = source.groupby(['user_id'])
-    agg = pd.DataFrame.from_dict(
-        {
-            # user count
-            'Users': '{}'.format(len(user)),
-            # users with only one session
-            'Bounce Rate': '{0:.1f}%'.format(
-                sum(
-                    (user.size()==1) & 
-                    (user.nth(0)['level']=='free') & 
-                    (user.nth(0)['level_sessions']==1)
-                )/user.ngroups*100
-            ),
-            # users that upgraded from free to paid
-            'Conversion Rate': '{0:.1f}%'.format(
-                sum(
-                    (user.nth(0)['level']=='paid') & (user.nth(1)['level']=='free')
-                )/user.ngroups*100
-            ),
-            # users that return for multiple visits
-            'Return Rate': '{0:.1f}%'.format(
-                sum(user['level_sessions'].sum()>1)/user.ngroups*100
-            )
-        }, orient='index', columns=['Value']
-    )
-    agg['X'] = range(0,len(agg))
-    agg['Y'] = 0
-    agg.index.name = 'Stat'
-    agg = agg.reset_index()
-
-    # single stat panel
-    chart = alt.Chart(agg, title='User Engagement')
-    value = chart.encode(
-        alt.X('X', scale=alt.Scale(domain=[-0.5, len(agg)]), axis=None),
-        alt.Y('Y', scale=alt.Scale(domain=[-0.5, 0.5]), axis=None),
-    )
-    value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
-    label = value.mark_text(baseline='top').encode(text='Stat')
-
-    return (value + label).properties(width=400, height=50)
-
 # read user_engagement query
-# TODO: move to ETL process to prevent complicated end user query
-with open('user_levels.pgsql') as fh:
-    user_levels = fh.read()
-user_levels = pd.read_sql(user_levels, conn)
+def level_query():
+
+    # TODO: move to ETL process to prevent complicated end user query
+    with open('user_levels.pgsql') as fh:
+        user_levels = fh.read()
+    user_levels = pd.read_sql(user_levels, conn)
+    user_levels = user_levels.rename(columns={
+        'user_id': 'User ID',
+        'user_level_index': 'User Level Index',
+        'level': 'Level',
+        'level_sessions': 'Level Sessions',
+        'play_count': 'Plays',
+        'level_days': 'Level Days'
+    })
+    return user_levels
+
+user_levels = level_query()
 
 # position each chart into final dashboard
 dashboard = (
