@@ -32,23 +32,21 @@ def user_stats(user_levels):
         {
             # user count
             'Users': '{}'.format(len(user)),
+            # users that return for multiple visits
+            'Return Rate': '{0:.1f}%'.format(
+                sum(user['Level Sessions'].sum()>1)/user.ngroups*100
+            ),
             # users with only one session
             'Bounce Rate': '{0:.1f}%'.format(
                 sum(
                     (user.size()==1) & 
-                    (user.nth(0)['Level']=='free') & 
+                    (user.nth(0)['Level Current']=='free') & 
                     (user.nth(0)['Level Sessions']==1)
                 )/user.ngroups*100
             ),
             # users that upgraded from free to paid
-            'Conversion Rate': '{0:.1f}%'.format(
-                sum(
-                    (user.nth(0)['Level']=='paid') & (user.nth(1)['Level']=='free')
-                )/user.ngroups*100
-            ),
-            # users that return for multiple visits
-            'Return Rate': '{0:.1f}%'.format(
-                sum(user['Level Sessions'].sum()>1)/user.ngroups*100
+            'Upgrade Rate': '{0:.1f}%'.format(
+                sum((user.nth(0)['Level Current']=='paid') & (user.nth(1)['Level Current']=='free'))/user.ngroups*100
             )
         }, orient='index', columns=['Value']
     )
@@ -349,24 +347,14 @@ def user_agent():
 
 def user_comparison(user_levels):
 
-    # determine users that upgraded from free
-    # TODO: handle multiple levels
-    # TODO: see how many users start out paid
-    # TODO: add to single stat panel ?
-    source = user_levels.sort_values(by=['User ID','User Level Index'])
-    upgrade = source.groupby(['User ID'])
-    upgrade = (upgrade.nth(0)['Level']=='paid') & (upgrade.nth(1)['Level']=='free')
-    upgrade.name = 'Upgrade'
-    source = source.merge(upgrade,left_on='User ID', right_on='User ID', how='left')
-
-    chart = alt.Chart(source, title='User Level Comparison')
+    chart = alt.Chart(user_levels, title='User Level Comparison')
     chart = chart.mark_boxplot()
     chart = chart.encode(
         x=alt.X(alt.repeat("column"), type='quantitative'),
-        y=alt.Y('Level', title='Level')
+        y=alt.Y('Level Category', title='Level')
     ).properties(
         width=250,
-        height=50
+        height=100
     ).repeat(
         column=['Plays', 'Level Sessions']
     )
@@ -378,17 +366,28 @@ def level_query():
 
     # TODO: move to ETL process to prevent complicated end user query
     with open('user_levels.pgsql') as fh:
-        user_levels = fh.read()
-    user_levels = pd.read_sql(user_levels, conn)
-    user_levels = user_levels.rename(columns={
+        levels = fh.read()
+    levels = pd.read_sql(levels, conn)
+    # rename for friendly dashboard names
+    levels = levels.rename(columns={
         'user_id': 'User ID',
         'user_level_index': 'User Level Index',
-        'level': 'Level',
+        'level_current': 'Level Current',
+        'level_previous': 'Level Previous',
+        'level_next': 'Level Next',
         'level_sessions': 'Level Sessions',
         'play_count': 'Plays',
         'level_days': 'Level Days'
     })
-    return user_levels
+
+    # categorize user levels such as upgrades/downgrades
+    levels['Level Category'] = None
+    levels.loc[(levels['Level Current']=='free') & (levels['Level Next']=='paid'),'Level Category'] = 'Free then Paid'
+    levels.loc[(levels['Level Current']=='paid') & (levels['Level Next']=='free'),'Level Category'] = 'Paid then Free'
+    levels.loc[(levels['Level Current']=='free') & (levels['Level Next'].isna()),'Level Category'] = 'Free Only'
+    levels.loc[(levels['Level Current']=='paid') & (levels['Level Next'].isna()),'Level Category'] = 'Paid Only'
+
+    return levels
 
 user_levels = level_query()
 

@@ -3,7 +3,9 @@
 -- -------
 -- user_id: identifier for each user
 -- user_level_index: increases for previous subscription levels, current level = 1
--- level: subscription level
+-- level_current: subscription level
+-- level_previous: level of previous subscription level with null identifying first user level
+-- level_next: level of next subscription level with null identifying last user level
 -- level_sessions: sessions at level
 -- play_count: plays at level
 -- level_days: time user spent at level, according to song plays
@@ -19,13 +21,13 @@ _session_summary AS (
         COUNT(songplay_id) AS play_count
     FROM
         songplays
-    -- WHERE user_id=16
+    -- WHERE user_id=15
     GROUP BY
         user_id,
         session_id
 ),
 -- calculate previous level and session index for user
-_session_previous AS (
+_session_comparison AS (
     SELECT
         user_id,
         RANK () OVER (
@@ -37,6 +39,10 @@ _session_previous AS (
             PARTITION BY user_id
             ORDER BY start_time ASC
         ) AS level_previous,
+        LEAD (level,1) OVER (
+            PARTITION BY user_id
+            ORDER BY start_time ASC            
+        ) AS level_next,
         play_count,
         start_time
     FROM
@@ -49,6 +55,7 @@ _level_change AS (
         user_session_id,
         level_current,
         level_previous,
+        level_next,
         CASE
             WHEN level_current<>level_previous THEN 1
             ELSE 0
@@ -56,7 +63,7 @@ _level_change AS (
         play_count,
         start_time
     FROM
-        _session_previous
+        _session_comparison
 ),
 -- assign levels a group ID for user
 _level_id AS (
@@ -69,6 +76,7 @@ _level_id AS (
         ) AS user_level_id,
         level_current,
         level_previous,
+        level_next,
         play_count,
         start_time
     FROM
@@ -87,6 +95,10 @@ _group_level AS (
             PARTITION BY user_id, user_level_id
             ORDER BY start_time ASC
         ) AS level_previous,
+        FIRST_VALUE (level_next) OVER (
+            PARTITION BY user_id, user_level_id
+            ORDER BY start_time DESC
+        ) AS level_next,
         user_session_id,
         play_count,
         start_time
@@ -95,7 +107,7 @@ _group_level AS (
 )
 
 -- SELECT * FROM _session_summary ORDER BY start_time ASC
--- SELECT * FROM _session_previous
+-- SELECT * FROM _session_comparison
 -- SELECT * FROM _level_change
 -- SELECT * FROM _level_id
 -- SELECT * FROM _group_level
@@ -107,7 +119,9 @@ SELECT
         PARTITION BY user_id
         ORDER BY user_level_id DESC
     ) AS user_level_index,
-    MAX(level_current) AS level,
+    MAX(level_current) AS level_current,
+    MAX(level_previous) AS level_previous,
+    MAX(level_next) AS level_next,
     MAX(user_session_id)-MIN(user_session_id)+1 AS level_sessions,
     SUM(play_count) AS play_count,
     DATE_PART('day',MAX(start_time)-MIN(start_time)) AS level_days
