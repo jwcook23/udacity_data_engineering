@@ -98,7 +98,41 @@ def user_level():
         text=alt.Text('percent', format='.0%')
     )
 
-    return (chart + text).properties(width=250, height=100)
+    return (chart + text).properties(width=250, height=60)
+
+def play_level():
+    query = """
+    WITH _total AS (
+        SELECT
+            level,
+            COUNT(*) AS _count
+        FROM songplays
+        GROUP BY level
+    ) 
+    SELECT
+        level,
+        _count / (SELECT SUM(_count) FROM _total) AS percent
+    FROM _total;
+    """
+
+    source = pd.read_sql(query, conn)
+
+    chart = alt.Chart(source, title='Play Subscription Level')
+    chart = chart.mark_bar()
+    chart = chart.encode(
+        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Plays'),
+        y=alt.Y('level', title='Level'),
+        color=alt.Color('level', legend=None),
+    )
+
+    text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
+    text = text.encode(
+        x=alt.X('percent', stack='zero'),
+        y=alt.Y('level'),
+        text=alt.Text('percent', format='.0%')
+    )
+
+    return (chart + text).properties(width=250, height=60)  
 
 def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
@@ -134,41 +168,7 @@ def play_trend():
     )
 
     return (chart + rect).properties(width=250, height=100)
-
-def play_level():
-    query = """
-    WITH _total AS (
-        SELECT
-            level,
-            COUNT(*) AS _count
-        FROM songplays
-        GROUP BY level
-    ) 
-    SELECT
-        level,
-        _count / (SELECT SUM(_count) FROM _total) AS percent
-    FROM _total;
-    """
-
-    source = pd.read_sql(query, conn)
-
-    chart = alt.Chart(source, title='Play Subscription Level')
-    chart = chart.mark_bar()
-    chart = chart.encode(
-        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Plays'),
-        y=alt.Y('level', title='Level'),
-        color=alt.Color('level', legend=None),
-    )
-
-    text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
-    text = text.encode(
-        x=alt.X('percent', stack='zero'),
-        y=alt.Y('level'),
-        text=alt.Text('percent', format='.0%')
-    )
-
-    return (chart + text).properties(width=250, height=100)
-    
+  
 def play_hour():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
     query = """
@@ -288,7 +288,7 @@ def user_top25pct():
         color=alt.Color('level', legend=alt.Legend(orient='bottom'), title='Level')
     )
 
-    return chart.properties(width=250, height=150)
+    return chart.properties(width=275, height=150)
 
 def user_agent():
 
@@ -329,29 +329,23 @@ def user_agent():
 
     heatmap = base.mark_rect().encode(
         color=alt.Color('playcount',
-            scale=alt.Scale(scheme='viridis'), title='Plays',
+            scale=alt.Scale(scheme='lightmulti'), title='Plays',
             legend=alt.Legend(orient='bottom')
         )
     )
 
-    text = base.mark_text(baseline='middle').encode(
-        text='playcount',
-        color=alt.condition(
-            alt.datum.playcount > 100,
-            alt.value('black'),
-            alt.value('white')
-        )
-    )
+    text = base.mark_text(baseline='middle').encode(text='playcount')
 
-    return (heatmap + text).properties(width=175, height=100)
+    return (heatmap + text).properties(width=150, height=100)
 
 def user_comparison(user_levels):
 
     chart = alt.Chart(user_levels, title='User Level Comparison')
-    chart = chart.mark_boxplot()
+    chart = chart.mark_boxplot(size=20, extent=0.5, outliers=False)
     chart = chart.encode(
         x=alt.X(alt.repeat("column"), type='quantitative'),
-        y=alt.Y('Level Category', title='Level')
+        y=alt.Y('Level Category', title='Level', axis=None),
+        color=alt.Color('Level Category', legend=alt.Legend(orient='top'))
     ).properties(
         width=250,
         height=100
@@ -398,7 +392,7 @@ dashboard = (
         (user_level() | play_level()) &
         user_comparison(user_levels) & 
         (play_hour() | play_trend()).resolve_scale(color='independent')
-    ) |
+    ).resolve_scale(color='independent') |
     (
         (user_top25pct() | user_agent()) &
         play_location()
