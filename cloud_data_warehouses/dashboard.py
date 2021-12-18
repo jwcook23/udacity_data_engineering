@@ -1,6 +1,5 @@
 import os
 import webbrowser
-from altair.vegalite.v4.schema.channels import StrokeOpacity
 import psycopg2
 import pandas as pd
 import altair as alt
@@ -64,7 +63,7 @@ def user_stats(user_levels):
     value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
     label = value.mark_text(baseline='top').encode(text='Stat')
 
-    return (value + label).properties(width=400, height=50)
+    return (value + label).properties(width=350, height=50)
 
 def user_level():
     query = """
@@ -98,7 +97,7 @@ def user_level():
         text=alt.Text('percent', format='.0%')
     )
 
-    return (chart + text).properties(width=250, height=60)
+    return (chart + text).properties(width=175, height=80)
 
 def play_level():
     query = """
@@ -132,7 +131,25 @@ def play_level():
         text=alt.Text('percent', format='.0%')
     )
 
-    return (chart + text).properties(width=250, height=60)  
+    return (chart + text).properties(width=175, height=80)  
+
+def user_gender():
+    pass
+    # https://github.com/altair-viz/altair/issues/2536
+    # source = pd.DataFrame({"values": [12, 23, 47, 6, 52, 19]})
+
+    # chart = alt.Chart(source)
+    # chart = chart.encode(
+    #     theta=alt.Theta("values:Q", stack=True),
+    #     radius=alt.Radius("values", scale=alt.Scale(type="sqrt", zero=True, rangeMin=20)),
+    #     color="values:N",
+    # )
+
+    # c1 = chart.mark_arc(innerRadius=20, stroke="#fff")
+
+    # c2 = chart.mark_text(radiusOffset=10).encode(text="values:Q")
+
+    # return c1 + c2
 
 def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
@@ -164,7 +181,7 @@ def play_trend():
         x='day',
         x2='stop',
         opacity=alt.value(0.4),
-        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='bottom'), title=None)
+        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='top'))
     )
 
     return (chart + rect).properties(width=250, height=100)
@@ -244,7 +261,7 @@ def play_location():
     # add appropriate zoom/view (projection)
     chart = chart.project('albersUsa')
 
-    return (base + chart).properties(width=450, height=250)
+    return (base + chart).properties(width=450, height=300)
 
 def user_top25pct():
 
@@ -341,14 +358,14 @@ def user_agent():
 def user_comparison(user_levels):
 
     chart = alt.Chart(user_levels, title='User Level Comparison')
-    chart = chart.mark_boxplot(size=20, extent=0.5, outliers=False)
+    chart = chart.mark_boxplot(size=20, outliers=False)
     chart = chart.encode(
-        x=alt.X(alt.repeat("column"), type='quantitative'),
-        y=alt.Y('Level Category', title='Level', axis=None),
+        x=alt.X('Level Category', title='Level', axis=None),
+        y=alt.Y(alt.repeat("column"), type='quantitative'),
         color=alt.Color('Level Category', legend=alt.Legend(orient='top'))
     ).properties(
-        width=250,
-        height=100
+        width=150,
+        height=300
     ).repeat(
         column=['Plays', 'Level Sessions']
     )
@@ -388,10 +405,12 @@ user_levels = level_query()
 # position each chart into final dashboard
 dashboard = (
     (
-        (dashboard_title() | user_stats(user_levels)) &
+        (dashboard_title() | user_stats(user_levels) | user_gender()) &
         (user_level() | play_level()) &
-        user_comparison(user_levels) & 
-        (play_hour() | play_trend()).resolve_scale(color='independent')
+        (
+            (play_trend() & play_hour()) |
+            user_comparison(user_levels)
+        ).resolve_scale(color='independent')
     ).resolve_scale(color='independent') |
     (
         (user_top25pct() | user_agent()) &
@@ -399,7 +418,7 @@ dashboard = (
     ).resolve_scale(color='independent')
 )
 
-dashboard = dashboard.configure_view(strokeOpacity=0)
+# dashboard = dashboard.configure_view(strokeOpacity=0)
 
 # open dashboard in webbrowser
 url = os.path.join(os.getcwd(),'dashboard.html')
