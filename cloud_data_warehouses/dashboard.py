@@ -135,7 +135,7 @@ def play_level():
     return (chart + text).properties(width=175, height=80)  
 
 def play_trend():
-    # TODO: verify ON time.start_time = songplays.start_time JOIN
+    
     query = """
     SELECT
         time.day,
@@ -170,7 +170,7 @@ def play_trend():
     return (chart + rect).properties(width=250, height=100)
   
 def play_hour():
-    # TODO: verify ON time.start_time = songplays.start_time JOIN
+    
     query = """
     SELECT
         time.hour,
@@ -248,7 +248,6 @@ def play_location():
 
 def user_prctile():
 
-    # TODO: deduplicate users with multiple levels
     query = """
     SELECT
         user_id,
@@ -276,6 +275,7 @@ def user_prctile():
             ) AS prctile
         FROM _count
     ) AS _percentile
+    WHERE prctile>=0.75
     ORDER BY playcount DESC
     """
     source = pd.read_sql(query, conn)
@@ -291,8 +291,8 @@ def user_prctile():
     return chart.properties(width=400, height=150)
 
 def user_agent():
-
-    # TODO: move case to ETL process
+    
+    # TODO: move to ETL process to prevent complicated end user query
     query = """
     SELECT
         os,
