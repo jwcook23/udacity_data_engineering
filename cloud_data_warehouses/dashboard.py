@@ -1,5 +1,6 @@
 import os
 import webbrowser
+from altair.vegalite.v4.schema.core import FontWeight
 import psycopg2
 import pandas as pd
 import altair as alt
@@ -87,7 +88,7 @@ def user_level():
     chart = chart.encode(
         x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Users'),
         y=alt.Y('level', title='Level'),
-        color='level'
+        color=alt.Color('level', legend=None)
     )
 
     text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
@@ -133,24 +134,6 @@ def play_level():
 
     return (chart + text).properties(width=175, height=80)  
 
-def user_gender():
-    pass
-    # https://github.com/altair-viz/altair/issues/2536
-    # source = pd.DataFrame({"values": [12, 23, 47, 6, 52, 19]})
-
-    # chart = alt.Chart(source)
-    # chart = chart.encode(
-    #     theta=alt.Theta("values:Q", stack=True),
-    #     radius=alt.Radius("values", scale=alt.Scale(type="sqrt", zero=True, rangeMin=20)),
-    #     color="values:N",
-    # )
-
-    # c1 = chart.mark_arc(innerRadius=20, stroke="#fff")
-
-    # c2 = chart.mark_text(radiusOffset=10).encode(text="values:Q")
-
-    # return c1 + c2
-
 def play_trend():
     # TODO: verify ON time.start_time = songplays.start_time JOIN
     query = """
@@ -181,7 +164,7 @@ def play_trend():
         x='day',
         x2='stop',
         opacity=alt.value(0.4),
-        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='top'))
+        color=alt.Color('Time of Week:N',legend=alt.Legend(orient='bottom'))
     )
 
     return (chart + rect).properties(width=250, height=100)
@@ -206,7 +189,7 @@ def play_hour():
         y=alt.X('count', title='Plays')
     )
 
-    return chart.properties(width=250, height=100)
+    return chart.properties(width=250, height=75)
 
 def play_location():
 
@@ -263,14 +246,15 @@ def play_location():
 
     return (base + chart).properties(width=450, height=300)
 
-def user_top25pct():
+def user_prctile():
 
     # TODO: deduplicate users with multiple levels
     query = """
     SELECT
         user_id,
         level,
-        playcount
+        playcount,
+        prctile
     FROM (
         WITH _count AS(
             SELECT 
@@ -289,10 +273,9 @@ def user_top25pct():
             playcount,
             PERCENT_RANK() OVER (
                 ORDER BY playcount
-            ) AS _rank
+            ) AS prctile
         FROM _count
     ) AS _percentile
-    WHERE _percentile._rank>=0.75
     ORDER BY playcount DESC
     """
     source = pd.read_sql(query, conn)
@@ -302,10 +285,10 @@ def user_top25pct():
     chart = chart.encode(
         x=alt.X('user_id:N', sort='-y', title='User ID', axis=alt.Axis(labelAngle=60)),
         y=alt.Y('playcount:Q', title='Plays'),
-        color=alt.Color('level', legend=alt.Legend(orient='bottom'), title='Level')
+        color=alt.Color('level', legend=alt.Legend(orient='top-right'), title='Level')
     )
 
-    return chart.properties(width=275, height=150)
+    return chart.properties(width=400, height=150)
 
 def user_agent():
 
@@ -340,20 +323,20 @@ def user_agent():
 
     base = alt.Chart(source, title='User Agent')
     base = base.encode(
-        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System', axis=alt.Axis(labelAngle=-45)),
-        alt.Y('browser', scale=alt.Scale(paddingInner=0), title='Browser'),
+        alt.X('os', scale=alt.Scale(paddingInner=0), title='Operating System', axis=alt.Axis(labelAngle=-30)),
+        alt.Y('browser', scale=alt.Scale(paddingInner=0), title='Browser')
     )
 
     heatmap = base.mark_rect().encode(
         color=alt.Color('playcount',
             scale=alt.Scale(scheme='lightmulti'), title='Plays',
-            legend=alt.Legend(orient='bottom')
+            legend=None
         )
     )
 
     text = base.mark_text(baseline='middle').encode(text='playcount')
 
-    return (heatmap + text).properties(width=150, height=100)
+    return (heatmap + text).properties(width=150, height=80)
 
 def user_comparison(user_levels):
 
@@ -362,10 +345,10 @@ def user_comparison(user_levels):
     chart = chart.encode(
         x=alt.X('Level Category', title='Level', axis=None),
         y=alt.Y(alt.repeat("column"), type='quantitative'),
-        color=alt.Color('Level Category', legend=alt.Legend(orient='top'))
+        color=alt.Color('Level Category', legend=alt.Legend(orient='bottom'))
     ).properties(
         width=150,
-        height=300
+        height=280
     ).repeat(
         column=['Plays', 'Level Sessions']
     )
@@ -405,22 +388,22 @@ user_levels = level_query()
 # position each chart into final dashboard
 dashboard = (
     (
-        (dashboard_title() | user_stats(user_levels) | user_gender()) &
-        (user_level() | play_level()) &
+        (dashboard_title() | user_stats(user_levels)) &
+        (user_level() | play_level() | user_agent()) &
         (
-            (play_trend() & play_hour()) |
+            (play_hour() & play_trend()) |
             user_comparison(user_levels)
         ).resolve_scale(color='independent')
     ).resolve_scale(color='independent') |
     (
-        (user_top25pct() | user_agent()) &
+        user_prctile() &
         play_location()
     ).resolve_scale(color='independent')
 )
 
-# dashboard = dashboard.configure_view(strokeOpacity=0)
+dashboard = dashboard.configure_view(strokeOpacity=0)
 
-# open dashboard in webbrowser
-url = os.path.join(os.getcwd(),'dashboard.html')
-dashboard.save(url)
-webbrowser.open(os.path.join('file:' + url))
+# save then open dashboard in webbrowser
+fp = os.path.join(os.getcwd(),'dashboard.html')
+dashboard.save(fp)
+webbrowser.open(os.path.join('file:' + fp))
