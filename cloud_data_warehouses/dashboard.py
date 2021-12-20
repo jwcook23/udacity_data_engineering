@@ -1,13 +1,10 @@
 import os
 import webbrowser
-from altair.vegalite.v4.schema.core import FontWeight
+import configparser
 import psycopg2
 import pandas as pd
 import altair as alt
 from vega_datasets import data as vega_data
-
-conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
-cur = conn.cursor()
 
 def dashboard_title():
     '''Create empty graph to use as the overall dashboard title.'''
@@ -21,7 +18,7 @@ def dashboard_title():
     )
     label = label.mark_text(baseline='bottom', size=26, fontWeight='bold').encode(text='Title')
 
-    return (label).properties(width=200, height=50)
+    return (label).properties(width=300, height=50)
 
 def user_stats(user_levels):
 
@@ -64,9 +61,9 @@ def user_stats(user_levels):
     value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
     label = value.mark_text(baseline='top').encode(text='Stat')
 
-    return (value + label).properties(width=350, height=50)
+    return (value + label).properties(width=375, height=50)
 
-def user_level():
+def user_level(conn):
     query = """
     WITH _total AS (
         SELECT
@@ -100,7 +97,7 @@ def user_level():
 
     return (chart + text).properties(width=175, height=80)
 
-def play_level():
+def play_level(conn):
     query = """
     WITH _total AS (
         SELECT
@@ -134,7 +131,7 @@ def play_level():
 
     return (chart + text).properties(width=175, height=80)  
 
-def play_trend():
+def play_trend(conn):
     
     query = """
     SELECT
@@ -169,7 +166,7 @@ def play_trend():
 
     return (chart + rect).properties(width=250, height=100)
   
-def play_hour():
+def play_hour(conn):
     
     query = """
     SELECT
@@ -191,7 +188,7 @@ def play_hour():
 
     return chart.properties(width=250, height=75)
 
-def play_location():
+def play_location(conn):
 
     # derive state from location extrafter comma, first dash
     # extract state from text after common then before dash
@@ -246,7 +243,7 @@ def play_location():
 
     return (base + chart).properties(width=450, height=300)
 
-def user_prctile():
+def user_prctile(conn):
 
     query = """
     SELECT
@@ -285,13 +282,13 @@ def user_prctile():
     chart = chart.encode(
         x=alt.X('user_id:N', sort='-y', title='User ID', axis=alt.Axis(labelAngle=60)),
         y=alt.Y('playcount:Q', title='Plays'),
-        color=alt.Color('level', legend=alt.Legend(orient='top-right'), title='Level')
+        color=alt.Color('level', legend=alt.Legend(orient='right'), title='Level')
     )
 
-    return chart.properties(width=400, height=150)
+    return chart.properties(width=350, height=150)
 
-def user_agent():
-    
+def user_agent(conn):
+
     # TODO: move to ETL process to prevent complicated end user query
     query = """
     SELECT
@@ -355,8 +352,7 @@ def user_comparison(user_levels):
 
     return chart
 
-# read user_engagement query
-def level_query():
+def level_query(conn):
 
     # TODO: move to ETL process to prevent complicated end user query
     with open('user_levels.pgsql') as fh:
@@ -383,27 +379,47 @@ def level_query():
 
     return levels
 
-user_levels = level_query()
 
-# position each chart into final dashboard
-dashboard = (
-    (
-        (dashboard_title() | user_stats(user_levels)) &
-        (user_level() | play_level() | user_agent()) &
+def main():
+
+    config = configparser.ConfigParser()
+    config.optionxform = str
+    config.read('dwh.cfg')
+    config = dict(config.items('CLUSTER'))
+
+    conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
+
+    # conn = psycopg2.connect(f"""
+    #     host={config['HOST']} dbname={config['DB_NAME']} 
+    #     user={config['DB_USER']} password={config['DB_PASSWORD']} 
+    #     port={config['DB_PORT']}"""
+    # )
+
+    # perform external complicated user level query
+    user_levels = level_query(conn)
+
+    # position each chart into final dashboard
+    dashboard = (
         (
-            (play_hour() & play_trend()) |
-            user_comparison(user_levels)
+            (dashboard_title() | user_stats(user_levels)) &
+            (user_level(conn) | play_level(conn) | user_agent(conn)) &
+            (
+                (play_hour(conn) & play_trend(conn)) |
+                user_comparison(user_levels)
+            ).resolve_scale(color='independent')
+        ).resolve_scale(color='independent') |
+        (
+            user_prctile(conn) &
+            play_location(conn)
         ).resolve_scale(color='independent')
-    ).resolve_scale(color='independent') |
-    (
-        user_prctile() &
-        play_location()
-    ).resolve_scale(color='independent')
-)
+    )
 
-dashboard = dashboard.configure_view(strokeOpacity=0)
+    dashboard = dashboard.configure_view(strokeOpacity=0)
 
-# save then open dashboard in webbrowser
-fp = os.path.join(os.getcwd(),'dashboard.html')
-dashboard.save(fp)
-webbrowser.open(os.path.join('file:' + fp))
+    # save then open dashboard in webbrowser
+    fp = os.path.join(os.getcwd(),'dashboard.html')
+    dashboard.save(fp)
+    webbrowser.open(os.path.join('file:' + fp))
+
+if __name__ == "__main__":
+    main()

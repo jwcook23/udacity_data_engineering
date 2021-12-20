@@ -106,7 +106,7 @@ _group_level AS (
         _level_id
 )
 
--- SELECT * FROM _session_summary ORDER BY start_time ASC
+-- SELECT user_id, session_id, level, TO_CHAR(start_time, 'YYYY-MM-DD') AS start_time, play_count FROM _session_summary ORDER BY start_time ASC
 -- SELECT * FROM _session_comparison
 -- SELECT * FROM _level_change
 -- SELECT * FROM _level_id

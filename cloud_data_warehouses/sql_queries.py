@@ -163,37 +163,35 @@ def copy_syntax():
     
     table = 'staging_events'
     bucket = config['S3']['LOG_DATA']
-    query = (
-    "COPY {table} FROM {bucket}"
-    "CREDENTIALS 'aws_iam_role={iam_role}'"
-    "REGION '{region}'"                         # ability to load from other regions
-    "COMPUPDATE OFF"                            # disable auto compression to improve loading many small files
-    "FORMAT AS JSON {json_mapping}"             # TODO: is this needed because of case sensitivity?
+    query = [
+    "COPY {table} FROM {bucket}",
+    "CREDENTIALS 'aws_iam_role={iam_role}'",
+    "COMPUPDATE OFF",                           # disable auto compression to improve loading many small files
+    "FORMAT AS JSON {json_mapping}",            # prevent 'Delimiter not found' errors, possibly from multine JSON
     "MAXERROR 10"                               # skip errors such as String length exceeds DDL length
-    )
+    ]
+    query = '\n'.join(query)
     # add parameters except table and bucket that will be added during ETL for tracability
     copy[(table, bucket)] = partial(
         query.format,
         iam_role = config['IAM_ROLE']['ARN'],
-        region=config['AWS']['REGION'],
         json_mapping=config['S3']['LOG_JSONPATH']   
     )
 
     table = 'staging_songs'
     bucket = config['S3']['SONG_DATA']
-    query = (
-    "COPY {table} FROM {bucket}"
-    "CREDENTIALS 'aws_iam_role={iam_role}'"
-    "REGION '{region}'"                         # ability to load from other regions
-    "COMPUPDATE OFF"                            # disable auto compression to improve loading many small files
-    "FORMAT JSON 'auto'"                        # load data by directly using the JSON keys and values
-    "MAXERROR 10"                               # skip errors such as String length exceeds DDL length
-    )
+    query = [
+    "COPY {table} FROM {bucket}",
+    "CREDENTIALS 'aws_iam_role={iam_role}'",
+    "COMPUPDATE OFF",                           # disable auto compression to improve loading many small files
+    "FORMAT JSON 'auto'",                       # load data by directly using the JSON keys and values
+    "MAXERROR 10",                              # skip errors such as String length exceeds DDL length
+    ]
+    query = '\n'.join(query)
     # add parameters except table and bucket that will be added during ETL for tracability
     copy[(table, bucket)] = partial(
         query.format,
-        iam_role = config['IAM_ROLE']['ARN'],
-        region=config['AWS']['REGION']
+        iam_role = config['IAM_ROLE']['ARN']
     )
 
     return copy

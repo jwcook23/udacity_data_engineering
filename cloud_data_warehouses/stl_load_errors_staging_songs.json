@@ -1,0 +1,12 @@
+{
+    "artist_location": [
+        {
+            "err_reason": "String length exceeds DDL length",
+            "filename": "s3://udacity-dend/song-data/A/Y/F/TRAYFUW128F428F618.json"
+        },
+        {
+            "err_reason": "String length exceeds DDL length",
+            "filename": "s3://udacity-dend/song-data/A/Y/F/TRAYFUW128F428F618.json"
+        }
+    ]
+}

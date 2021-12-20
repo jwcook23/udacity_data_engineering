@@ -45,35 +45,35 @@ config.read(config.__path__)
 clients = {
     'iam': boto3.client(
         'iam',
-        aws_access_key_id=config['AWS']['KEY'],
-        aws_secret_access_key=config['AWS']['SECRET'],
-        region_name=config['AWS']['REGION']
+        aws_access_key_id=config['INFRASTRUCTURE']['KEY'],
+        aws_secret_access_key=config['INFRASTRUCTURE']['SECRET'],
+        region_name=config['INFRASTRUCTURE']['REGION']
     ),
     'redshift': boto3.client(
         'redshift',
-        aws_access_key_id=config['AWS']['KEY'],
-        aws_secret_access_key=config['AWS']['SECRET'],
-        region_name=config['AWS']['REGION']
+        aws_access_key_id=config['INFRASTRUCTURE']['KEY'],
+        aws_secret_access_key=config['INFRASTRUCTURE']['SECRET'],
+        region_name=config['INFRASTRUCTURE']['REGION']
     ),
     'ec2': boto3.resource(
         'ec2',
-        aws_access_key_id=config['AWS']['KEY'],
-        aws_secret_access_key=config['AWS']['SECRET'],
-        region_name=config['AWS']['REGION']
+        aws_access_key_id=config['INFRASTRUCTURE']['KEY'],
+        aws_secret_access_key=config['INFRASTRUCTURE']['SECRET'],
+        region_name=config['INFRASTRUCTURE']['REGION']
     )
 }
 
 def create(config, clients):
 
-    STATUS_CHECK_ATTEMPTS = int(config['AWS']['STATUS_CHECK_ATTEMPTS'])
-    STATUS_CHECK_DELAY_SEC = int(config['AWS']['STATUS_CHECK_DELAY_SEC'])
+    STATUS_CHECK_ATTEMPTS = int(config['INFRASTRUCTURE']['STATUS_CHECK_ATTEMPTS'])
+    STATUS_CHECK_DELAY_SEC = int(config['INFRASTRUCTURE']['STATUS_CHECK_DELAY_SEC'])
 
     # Create IAM Role for Redshift S3 Access
-    print(f"Creating Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']}.")
+    print(f"Creating Redshift IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']}.")
     try:
         clients['iam'].create_role(
             Path='/',
-            RoleName=config['IAM_ROLE']['ROLE_NAME'],
+            RoleName=config['INFRASTRUCTURE']['ROLE_NAME'],
             Description = "Allow Redshift AWS service access.",
             AssumeRolePolicyDocument=json.dumps({
                 'Statement': [{
@@ -85,27 +85,27 @@ def create(config, clients):
         )
     except ClientError as err:
         if err.response['Error']['Code'] == 'EntityAlreadyExists':
-            print(f"Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']} already exists.")
+            print(f"Redshift IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']} already exists.")
         else:
             raise
     # attach policy
-    print(f"Attaching Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']} policy for S3 read only access.")
+    print(f"Attaching Redshift IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']} policy for S3 read only access.")
     clients['iam'].attach_role_policy(
-        RoleName=config['IAM_ROLE']['ROLE_NAME'],
+        RoleName=config['INFRASTRUCTURE']['ROLE_NAME'],
         PolicyArn="arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
     )['ResponseMetadata']['HTTPStatusCode']
     # get Redshift S3 access resource name set ARN in configuration file
-    redshiftS3_arn = clients['iam'].get_role(RoleName=config['IAM_ROLE']['ROLE_NAME'])['Role']['Arn']
+    redshiftS3_arn = clients['iam'].get_role(RoleName=config['INFRASTRUCTURE']['ROLE_NAME'])['Role']['Arn']
 
     # Create Redshift Cluster
-    print(f"Creating Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']}.")
+    print(f"Creating Redshift cluster {config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']}.")
     print(f"Creating database {config['CLUSTER']['DB_NAME']} in Redshift cluster.")
     try:
         clients['redshift'].create_cluster(        
             # hardware
-            ClusterType=config['CLUSTER']['CLUSTER_TYPE'],
-            NodeType=config['CLUSTER']['NODE_TYPE'],
-            NumberOfNodes=int(config['CLUSTER']['NUM_NODES']),
+            ClusterType=config['INFRASTRUCTURE']['CLUSTER_TYPE'],
+            NodeType=config['INFRASTRUCTURE']['NODE_TYPE'],
+            NumberOfNodes=int(config['INFRASTRUCTURE']['NUM_NODES']),
             # identifiers
             DBName=config['CLUSTER']['DB_NAME'],
             ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER'],
@@ -166,8 +166,8 @@ def create(config, clients):
 
 def delete(config, clients):
 
-    STATUS_CHECK_ATTEMPTS = int(config['AWS']['STATUS_CHECK_ATTEMPTS'])
-    STATUS_CHECK_DELAY_SEC = int(config['AWS']['STATUS_CHECK_DELAY_SEC'])
+    STATUS_CHECK_ATTEMPTS = int(config['INFRASTRUCTURE']['STATUS_CHECK_ATTEMPTS'])
+    STATUS_CHECK_DELAY_SEC = int(config['INFRASTRUCTURE']['STATUS_CHECK_DELAY_SEC'])
 
     # Delete Redshift Cluster
     print(f"Deleting Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']}.")
@@ -202,24 +202,24 @@ def delete(config, clients):
 
     # Delete IAM Role for Redshift S3 Access
     # detact policy
-    print(f"Detaching S3 Policy from IAM Role {config['IAM_ROLE']['ROLE_NAME']}.")
+    print(f"Detaching S3 Policy from IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']}.")
     try:
         clients['iam'].detach_role_policy(
-            RoleName=config['IAM_ROLE']['ROLE_NAME'],
+            RoleName=config['INFRASTRUCTURE']['ROLE_NAME'],
             PolicyArn="arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
         )
     except ClientError as err:
         if err.response['Error']['Code'] == 'NoSuchEntity':
-            print(f"S3 Policy for IAM Role {config['IAM_ROLE']['ROLE_NAME']} does not exist.")
+            print(f"S3 Policy for IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']} does not exist.")
         else:
             raise
     # delete role
-    print(f"Deleting IAM Role {config['IAM_ROLE']['ROLE_NAME']}.")
+    print(f"Deleting IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']}.")
     try:
-        clients['iam'].delete_role(RoleName=config['IAM_ROLE']['ROLE_NAME'])
+        clients['iam'].delete_role(RoleName=config['INFRASTRUCTURE']['ROLE_NAME'])
     except ClientError as err:
         if err.response['Error']['Code'] == 'NoSuchEntity':
-            print(f"Redshift IAM Role {config['IAM_ROLE']['ROLE_NAME']} does not exist.")
+            print(f"Redshift IAM Role {config['INFRASTRUCTURE']['ROLE_NAME']} does not exist.")
         else:
             raise
 
