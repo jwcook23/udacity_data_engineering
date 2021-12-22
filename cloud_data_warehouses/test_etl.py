@@ -4,7 +4,36 @@ not enforce primary key uniqueness.'''
 
 import configparser
 import psycopg2
+import pandas as pd
 
+def get_schema(conn, db_name):
+    '''Get table schema from Redshift to perform checks against.'''
+
+    # get schema of each table
+    ## exclude columns internal to Redshift with table_schema = 'public'
+    ## exclude staging tables
+    ## remark of 'PRIMARY KEY' should have been added for those columns during table creation
+    ## 'PRIMARY KEY' remark prevents complicated joins to determine the primary key
+    query = f"""
+        SELECT 
+            table_name,
+            column_name,
+            character_maximum_length,
+            remarks
+        FROM
+            SVV_COLUMNS 
+        WHERE table_catalog = '{db_name}'
+        AND table_schema = 'public'
+        AND table_name NOT LIKE 'staging%'
+    """
+    schema = pd.read_sql_query(query, conn, dtype={'character_maximum_length': 'Int64'})
+    table_schema = {}
+    for t in schema['table_name'].unique():
+        table_schema[t] = schema[schema['table_name']==t]
+        if not any(table_schema[t]['remarks']=='PRIMARY KEY'):
+            raise AttributeError(f'PRIMARY KEY comment for table {t} was not added during table creation.')
+    
+    return table_schema
 
 def check_contents(cur):
 
@@ -43,7 +72,26 @@ def check_contents(cur):
         else:
             raise RuntimeError(f'Table {t} contains duplicates in the primary key column {pk}.', duplicates)
 
-def main():
+# def main():
+#     config = configparser.ConfigParser()
+#     config.optionxform = str
+#     config.read('dwh.cfg')
+#     config = dict(config.items('CLUSTER'))
+
+#     conn = psycopg2.connect(f"""
+#         host={config['HOST']} dbname={config['DB_NAME']} 
+#         user={config['DB_USER']} password={config['DB_PASSWORD']} 
+#         port={config['DB_PORT']}"""
+#     )
+#     cur = conn.cursor()
+
+#     check_contents(cur)
+
+#     conn.close()
+
+if __name__ == "__main__":
+    
+    # connect to database
     config = configparser.ConfigParser()
     config.optionxform = str
     config.read('dwh.cfg')
@@ -54,11 +102,6 @@ def main():
         user={config['DB_USER']} password={config['DB_PASSWORD']} 
         port={config['DB_PORT']}"""
     )
-    cur = conn.cursor()
 
-    check_contents(cur)
-
-    conn.close()
-
-if __name__ == "__main__":
-    main()
+    # get table schema
+    table_schema = get_schema(conn, db_name=config['DB_NAME'])

@@ -81,7 +81,7 @@ def create_syntax():
         )
     """
 
-    ## dimension tables
+    ## dimension tables, including a remark for primary key using Redshift SVV_COLUMNS system view
     create['users'] = """
         CREATE TABLE {table} (
             user_id BIGINT NOT NULL,
@@ -90,7 +90,8 @@ def create_syntax():
             gender VARCHAR(1) NOT NULL,
             level VARCHAR(4) NOT NULL,
             PRIMARY KEY (user_id)
-        )
+        );
+        COMMENT ON COLUMN {table}.user_id is 'PRIMARY KEY';
     """
     create['songs'] = """
         CREATE TABLE {table} (
@@ -100,7 +101,8 @@ def create_syntax():
             year SMALLINT,
             duration DOUBLE PRECISION NOT NULL,
             PRIMARY KEY (song_id)
-        )
+        );
+        COMMENT ON COLUMN {table}.song_id is 'PRIMARY KEY';
     """
     create['artists'] = """
         CREATE TABLE {table} (
@@ -110,7 +112,8 @@ def create_syntax():
             artist_latitude DOUBLE PRECISION,
             artist_longitude DOUBLE PRECISION,
             PRIMARY KEY (artist_id)
-        )
+        );
+        COMMENT ON COLUMN {table}.artist_id is 'PRIMARY KEY';
     """
     create['time'] = """
         CREATE TABLE {table} (
@@ -122,7 +125,8 @@ def create_syntax():
             year SMALLINT NOT NULL,
             weekday SMALLINT NOT NULL,
             PRIMARY KEY (start_time)
-        )
+        );
+        COMMENT ON COLUMN {table}.start_time is 'PRIMARY KEY';
     """
 
     ## fact table, using primary and foreign key constraints for the query optimizer
@@ -142,7 +146,8 @@ def create_syntax():
             FOREIGN KEY (song_id) REFERENCES songs(song_id),
             FOREIGN KEY (artist_id) REFERENCES artists(artist_id),
             FOREIGN KEY (start_time) REFERENCES time(start_time)
-        )
+        );
+        COMMENT ON COLUMN {table}.songplay_id is 'PRIMARY KEY';
     """
 
     return create
@@ -168,7 +173,8 @@ def copy_syntax():
     "CREDENTIALS 'aws_iam_role={iam_role}'",
     "COMPUPDATE OFF",                           # disable auto compression to improve loading many small files
     "FORMAT AS JSON {json_mapping}",            # prevent 'Delimiter not found' errors, possibly from multine JSON
-    "MAXERROR 10"                               # skip errors such as String length exceeds DDL length
+    "MAXERROR 10",                              # skip errors such as String length exceeds DDL length
+    "TRUNCATECOLUMNS"                           # trim long VARCHAR/CHAR columns to fit
     ]
     query = '\n'.join(query)
     # add parameters except table and bucket that will be added during ETL for tracability
@@ -186,6 +192,7 @@ def copy_syntax():
     "COMPUPDATE OFF",                           # disable auto compression to improve loading many small files
     "FORMAT JSON 'auto'",                       # load data by directly using the JSON keys and values
     "MAXERROR 10",                              # skip errors such as String length exceeds DDL length
+    "TRUNCATECOLUMNS"                           # trim long VARCHAR/CHAR columns to fit
     ]
     query = '\n'.join(query)
     # add parameters except table and bucket that will be added during ETL for tracability

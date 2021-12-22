@@ -108,7 +108,7 @@ def create(config, clients):
             NumberOfNodes=int(config['INFRASTRUCTURE']['NUM_NODES']),
             # identifiers
             DBName=config['CLUSTER']['DB_NAME'],
-            ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER'],
+            ClusterIdentifier=config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER'],
             # credentials and access
             MasterUsername=config['CLUSTER']['DB_USER'],
             MasterUserPassword=config['CLUSTER']['DB_PASSWORD'],
@@ -118,7 +118,7 @@ def create(config, clients):
         )
     except ClientError as err:
         if err.response['Error']['Code'] == 'ClusterAlreadyExists':
-            print(f"Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']} already exists.")
+            print(f"Redshift cluster {config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']} already exists.")
         else:
             raise
     # wait for cluster to become avaliable
@@ -128,11 +128,11 @@ def create(config, clients):
         print(f"Waiting {STATUS_CHECK_DELAY_SEC} seconds before checking cluster availability.")
         time.sleep(STATUS_CHECK_DELAY_SEC)
         cluster = clients['redshift'].describe_clusters(
-            ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER']
+            ClusterIdentifier=config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']
         )
         cluster = cluster['Clusters'][0]
         if cluster['ClusterStatus']=='available':
-            print(f"Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']} is available.")
+            print(f"Redshift cluster {config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']} is available.")
             cluster_host = cluster['Endpoint']['Address']
             break
         elif attempt==STATUS_CHECK_ATTEMPTS:
@@ -170,15 +170,15 @@ def delete(config, clients):
     STATUS_CHECK_DELAY_SEC = int(config['INFRASTRUCTURE']['STATUS_CHECK_DELAY_SEC'])
 
     # Delete Redshift Cluster
-    print(f"Deleting Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']}.")
+    print(f"Deleting Redshift cluster {config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']}.")
     try:
         clients['redshift'].delete_cluster(
-            ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER'],
+            ClusterIdentifier=config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER'],
             SkipFinalClusterSnapshot=True
         )
     except ClientError as err:
         if err.response['Error']['Code'] == 'ClusterNotFound':
-            print(f"Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']} does not exist.")
+            print(f"Redshift cluster {config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']} does not exist.")
         else:
             raise
     # wait for cluster to be deleted
@@ -188,14 +188,14 @@ def delete(config, clients):
             print(f"Waiting {STATUS_CHECK_DELAY_SEC} seconds before checking cluster deletion.")
             time.sleep(STATUS_CHECK_DELAY_SEC)
             cluster = clients['redshift'].describe_clusters(
-                ClusterIdentifier=config['CLUSTER']['CLUSTER_IDENTIFIER']
+                ClusterIdentifier=config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']
             )
             cluster = cluster['Clusters'][0]
             if attempt==STATUS_CHECK_ATTEMPTS:
                 raise RecursionError("Cluster deletion check max attempts exceeded. Suggest re-running teardown script.")
         except ClientError as err:
             if err.response['Error']['Code'] == 'ClusterNotFound':
-                print(f"Redshift cluster {config['CLUSTER']['CLUSTER_IDENTIFIER']} has been deleted/does not exist.")
+                print(f"Redshift cluster {config['INFRASTRUCTURE']['CLUSTER_IDENTIFIER']} has been deleted/does not exist.")
                 break
             else:
                 raise
