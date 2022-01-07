@@ -70,6 +70,7 @@ NFRASTRUCTURE/KEY and INFRASTRUCTURE/SECRET are manually generated in the AWS co
 
 
 <!-- TODO: document starting here -->
+<!-- TODO: separate into basic (quickstart) and project "extra credit"-->
 
 Run the script to create the Redshift cluster infrastructure.
 
@@ -173,10 +174,6 @@ An example of the contents of stl_load_errors_staging_songs.json is shown below.
         {
             "err_reason": "String length exceeds DDL length",
             "filename": "s3://udacity-dend/song-data/A/Y/F/TRAYFUW128F428F618.json"
-        },
-        {
-            "err_reason": "String length exceeds DDL length",
-            "filename": "s3://udacity-dend/song-data/A/Y/F/TRAYFUW128F428F618.json"
         }
     ]
 }
@@ -222,3 +219,20 @@ Aggregations performed server side to fully utilize performance of Redshift's co
 |15      |1     |paid     |free     |null |2        |92         |4          |2018-11-21 |
 |15      |2     |free     |paid     |paid |1        |66         |0          |2018-11-21 |
 |15      |3     |paid     |null     |free |9        |305        |17         |2018-11-02 |
+
+
+## Additional Project Functionality
+
+``` python
+Possible truncated string values during copy from S3 to Redshift.
+0>col_percent<100% has truncated records.
+col_percent=100% is possibly truncated (all values may be equal to the max column length).
+       table_name      column_name  col_percent
+0   staging_songs          song_id        100.0
+1   staging_songs  artist_location          5.0
+2  staging_events           gender        100.0
+3  staging_events            level        100.0
+4   staging_songs        artist_id        100.0
+5  staging_events           method        100.0
+
+```
