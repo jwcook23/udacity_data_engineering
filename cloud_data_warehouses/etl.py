@@ -1,6 +1,7 @@
 import configparser
 from collections import defaultdict
 import json
+import time
 import psycopg2
 from sql_queries import copy_syntax, insert_syntax
 
@@ -14,14 +15,15 @@ def load_staging_tables(cur, conn):
         bucket = table_s3[1]
         print(f'Beginning copy from S3 bucket {bucket} into table {table}.')
 
-        starttime = stl_load_starttime(cur, bucket)
+        load_start = stl_load_starttime(cur, bucket)
 
         query = query(table=table, bucket=bucket)
+        time_start = time.time()
         cur.execute(query)
         conn.commit()
-        print(f'Completed copy from S3 bucket {bucket} into table {table}.')
+        print(f'Completed copy from S3 bucket {bucket} into table {table} in {time.time()-time_start:.2f} seconds.')
 
-        stl_load_errors(cur, bucket, table, starttime)
+        stl_load_errors(cur, bucket, table, load_start)
 
 
 def insert_tables(cur, conn):

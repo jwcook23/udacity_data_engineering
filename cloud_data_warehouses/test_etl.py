@@ -12,6 +12,10 @@ class PossibleCopyStringTruncation(Warning):
     '''Warn for strings that were possibly truncated during the copy from S3 to Redshift.'''
     pass
 
+class DuplicatedPrimaryKey(Warning):
+    '''Warn for Redshift table containing a duplicated primary key value.'''
+    pass
+
 def get_schema(conn, db_name):
     '''Get table schema from Redshift to perform checks against.'''
 
@@ -58,7 +62,8 @@ def check_contents(schema_staging, schema_main, conn):
     SELECT
         '{table}' AS table_name,
         '{column}' AS column_name,
-        SUM(CASE WHEN LEN({column})={len} THEN 1 ELSE 0 END)/CAST(COUNT({column}) AS FLOAT)*100 AS col_percent
+        SUM(CASE WHEN LEN({column})={len} THEN 1 ELSE 0 END)/CAST(COUNT({column}) AS FLOAT)*100 AS col_percent,
+        {len} AS character_maximum_length
     FROM {table}
     HAVING col_percent>0
     '''
@@ -70,10 +75,12 @@ def check_contents(schema_staging, schema_main, conn):
     if len(truncated)>0:
         msg = '''Possible truncated string values during copy from S3 to Redshift.
         0>col_percent<100% has truncated records.
-        col_percent=100% is possibly truncated (all values may be equal to the max column length).
+        col_percent=100% is possibly truncated (all values may be equal to the max column length by design).
         '''
         msg += truncated.to_string()
-        warnings.warn(msg,PossibleCopyStringTruncation)   
+        warnings.warn(msg, PossibleCopyStringTruncation)
+    else:
+        print('Staging tables do not possibly contain truncated string values.')
 
     # non-staging, verify primary key uniqueness and show size of tables
     pks = schema_main.loc[schema_main['remarks']=='PRIMARY KEY',['table_name','column_name']]
@@ -91,9 +98,14 @@ def check_contents(schema_staging, schema_main, conn):
     query = [base.format(table_name=k,pk_column=v) for k,v in pks.items()]
     query = "\nUNION\n".join(query)
     contents = pd.read_sql_query(query, conn, index_col='table_name')
-    duplicated = list(contents[contents>0].index)
-    if any(duplicated):
-        raise AttributeError(f'Table(s) {duplicated} contain duplicated primary key values.')
+    duplicated = contents[contents['pks_duplicated']>0]
+    if len(duplicated)>0:
+        msg = '''Tables(s) contain duplicated primary key values (Redshift does not in force).
+        '''
+        msg += duplicated.to_string()
+        warnings.warn(msg, DuplicatedPrimaryKey)
+    else:
+        print('Tables contain no duplicated primary key values.')
     print('Record count for each non-staging table: {size}'.format(size=contents['length'].to_dict()))
 
 if __name__ == "__main__":

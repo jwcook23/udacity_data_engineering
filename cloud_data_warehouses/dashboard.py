@@ -18,7 +18,7 @@ def dashboard_title():
     )
     label = label.mark_text(baseline='bottom', size=26, fontWeight='bold').encode(text='Title')
 
-    return (label).properties(width=300, height=50)
+    return (label).properties(width=250, height=50)
 
 def user_stats(user_levels):
 
@@ -44,7 +44,11 @@ def user_stats(user_levels):
             # users that upgraded from free to paid
             'Upgrade Rate': '{0:.1f}%'.format(
                 sum((user.nth(0)['Level Current']=='paid') & (user.nth(1)['Level Current']=='free'))/user.ngroups*100
-            )
+            ),
+            # users that downgraded from paid to free
+            'Downgrades': '{0}'.format(
+                sum(user_levels['Level Previous']=='paid')
+            ),
         }, orient='index', columns=['Value']
     )
     agg['X'] = range(0,len(agg))
@@ -61,7 +65,7 @@ def user_stats(user_levels):
     value = value.mark_text(baseline='bottom', size=20).encode(text='Value')
     label = value.mark_text(baseline='top').encode(text='Stat')
 
-    return (value + label).properties(width=375, height=50)
+    return (value + label).properties(width=400, height=50)
 
 def user_level(conn):
     query = """
@@ -74,7 +78,7 @@ def user_level(conn):
     ) 
     SELECT
         level,
-        _count / (SELECT SUM(_count) FROM _total) AS percent
+        _count / (SELECT SUM(_count)*1.0 FROM _total) AS _percent
     FROM _total;
     """
 
@@ -83,16 +87,16 @@ def user_level(conn):
     chart = alt.Chart(source, title='User Subscription Level')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Users'),
+        x=alt.X('_percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Users'),
         y=alt.Y('level', title='Level'),
         color=alt.Color('level', legend=None)
     )
 
     text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
     text = text.encode(
-        x=alt.X('percent', stack='zero'),
+        x=alt.X('_percent', stack='zero'),
         y=alt.Y('level'),
-        text=alt.Text('percent', format='.0%')
+        text=alt.Text('_percent', format='.0%')
     )
 
     return (chart + text).properties(width=175, height=80)
@@ -103,12 +107,12 @@ def play_level(conn):
         SELECT
             level,
             COUNT(*) AS _count
-        FROM songplays
+        FROM songplay
         GROUP BY level
     ) 
     SELECT
         level,
-        _count / (SELECT SUM(_count) FROM _total) AS percent
+        _count / (SELECT SUM(_count)*1.0 FROM _total) AS _percent
     FROM _total;
     """
 
@@ -117,16 +121,16 @@ def play_level(conn):
     chart = alt.Chart(source, title='Play Subscription Level')
     chart = chart.mark_bar()
     chart = chart.encode(
-        x=alt.X('percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Plays'),
+        x=alt.X('_percent', stack='zero', axis=alt.Axis(format='%'), title='Percent of Plays'),
         y=alt.Y('level', title='Level'),
         color=alt.Color('level', legend=None),
     )
 
     text = alt.Chart(source).mark_text(dx=-15, dy=3, color='white')
     text = text.encode(
-        x=alt.X('percent', stack='zero'),
+        x=alt.X('_percent', stack='zero'),
         y=alt.Y('level'),
-        text=alt.Text('percent', format='.0%')
+        text=alt.Text('_percent', format='.0%')
     )
 
     return (chart + text).properties(width=175, height=80)  
@@ -137,10 +141,10 @@ def play_trend(conn):
     SELECT
         time.day,
         MIN(weekday) AS weekday,
-        COUNT(songplays.songplay_id) AS count
-    FROM songplays
+        COUNT(songplay.songplay_id) AS count
+    FROM songplay
     LEFT JOIN time
-        ON time.start_time = songplays.start_time
+        ON time.start_time = songplay.start_time
     GROUP BY day
     """
     source = pd.read_sql(query, conn)
@@ -171,10 +175,10 @@ def play_hour(conn):
     query = """
     SELECT
         time.hour,
-        COUNT(songplays.songplay_id) AS count
-    FROM songplays
+        COUNT(songplay.songplay_id) AS count
+    FROM songplay
     LEFT JOIN time
-        ON time.start_time = songplays.start_time
+        ON time.start_time = songplay.start_time
     GROUP BY time.hour
     """
     source = pd.read_sql(query, conn)
@@ -203,7 +207,7 @@ def play_location(conn):
                     1
                 )
             ) AS abbr
-        FROM songplays
+        FROM songplay
     )
     SELECT 
         abbr,
@@ -254,13 +258,13 @@ def user_prctile(conn):
     FROM (
         WITH _count AS(
             SELECT 
-                songplays.user_id,
+                songplay.user_id,
                 COUNT(songplay_id) AS playcount,
                 MAX(users.level) AS level
-            FROM songplays
+            FROM songplay
             INNER JOIN users
-                ON users.user_id = songplays.user_id
-            GROUP BY songplays.user_id
+                ON users.user_id = songplay.user_id
+            GROUP BY songplay.user_id
             ORDER BY playcount DESC
         )
         SELECT
@@ -311,7 +315,7 @@ def user_agent(conn):
             WHEN user_agent LIKE '%Mobile%' THEN 'Mobile'
             WHEN user_agent LIKE '%Safari%' THEN 'Safari'
         END AS browser
-        FROM songplays
+        FROM songplay
     ) AS _agent
     GROUP BY _agent.os, _agent.browser
     """

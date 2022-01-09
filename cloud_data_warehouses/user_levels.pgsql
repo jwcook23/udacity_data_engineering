@@ -20,7 +20,7 @@ _session_summary AS (
         MIN(start_time) AS start_time,
         COUNT(songplay_id) AS play_count
     FROM
-        songplays
+        songplay
     -- WHERE user_id=15
     GROUP BY
         user_id,
@@ -41,7 +41,7 @@ _session_comparison AS (
         ) AS level_previous,
         LEAD (level,1) OVER (
             PARTITION BY user_id
-            ORDER BY start_time ASC            
+            ORDER BY start_time ASC        
         ) AS level_next,
         play_count,
         start_time
@@ -73,6 +73,7 @@ _level_id AS (
         SUM(level_change) OVER (
             PARTITION BY user_id
             ORDER BY start_time ASC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS user_level_id,
         level_current,
         level_previous,
@@ -90,14 +91,17 @@ _group_level AS (
         FIRST_VALUE (level_current) OVER (
             PARTITION BY user_id, user_level_id
             ORDER BY start_time ASC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS level_current,
         FIRST_VALUE (level_previous) OVER (
             PARTITION BY user_id, user_level_id
             ORDER BY start_time ASC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS level_previous,
         FIRST_VALUE (level_next) OVER (
             PARTITION BY user_id, user_level_id
             ORDER BY start_time DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         ) AS level_next,
         user_session_id,
         play_count,
@@ -124,7 +128,10 @@ SELECT
     MAX(level_next) AS level_next,
     MAX(user_session_id)-MIN(user_session_id)+1 AS level_sessions,
     SUM(play_count) AS play_count,
-    DATE_PART('day',MAX(start_time)-MIN(start_time)) AS level_days
+    -- Postgres
+    -- DATE_PART('day',MAX(start_time)-MIN(start_time)) AS level_days
+    -- Redshift
+    DATEDIFF('day',MIN(start_time),MAX(start_time)) AS level_days
 FROM
     _group_level
 GROUP BY 

@@ -1,6 +1,30 @@
 # Sparkify User Song Plays
 
-An Amazon Web Services (AWS) Extract-Transform-Load (ETL) process that allows queries to answer analytical questions about user song plays.
+An Amazon Web Services ETL process that allows the music streaming company Sparkify to answer analytical questions about user song plays.
+
+Data is first copied from files in AWS S3 buckets into Redshift staging tables. Using the COPY command allows files to be processed in parallel to enhance speed. Speed will also increase with more Redshift cluster nodes, but so will cost. Finally data is copied from the staging tables, transformations are made, and then inserted into the final analytic tables. The column-oriented Redshift database allows for analytic queries to be answered more efficently than if stored in a row-oriented database.
+
+[Log Data S3 Bucket](https://s3.console.aws.amazon.com/s3/buckets/udacity-dend/log_data/)
+
+[Song Data S3 Bucket](https://s3.console.aws.amazon.com/s3/buckets/udacity-dend/song_data/)
+
+The final product produces the following dashboard, built using the Python package [Altair](https://altair-viz.github.io/).
+
+![User Play Dashboard](/dashboard.png)
+
+## Key Dashboard Points
+
+Keep in mind that part of the data for this project was generated using an event simulator.
+
+- 7.3% of users (bounce rate), only use the service once. 8.3% of users upgrade fom free to paid.
+- 1 user downgraded from paid to free. On investigation they later upgraded, so that was likely a mistake.
+- Most users are at the free subscription level, but most plays come from paid users.
+- Most song plays are between 14:00 and 18:00.
+- There isn't a large mobile play presence.
+- Users upgrade from free to paid on average at 50 plays. Users that stay at a free only level have roughly 10 plays.
+- Not much differentiation between user level category for session count.
+- 5 free users are in the top 25% of plays. They would be good targets for seeking an upgraded subscription.
+- Most plays are in California, followed by a grouping in the upper midwest.
 
 ## Quick Start
 
@@ -34,9 +58,9 @@ DB_PORT = 5439
 ARN = XXX
 
 [S3]
-LOG_DATA = 's3://udacity-dend/log-data'
+LOG_DATA = 's3://udacity-dend/log_data'
 LOG_JSONPATH = 's3://udacity-dend/log_json_path.json'
-SONG_DATA = 's3://udacity-dend/song-data'
+SONG_DATA = 's3://udacity-dend/song_data'
 ```
 
 The additional section is required for running infrastucture.py to create/delete Redshift infrastructure.
