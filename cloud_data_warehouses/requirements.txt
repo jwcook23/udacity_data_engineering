@@ -1,1 +1,6 @@
 psycopg2
+# optional for infrastructure.py
+boto3
+# optional for dashboard.py
+altair
+vega_datasets

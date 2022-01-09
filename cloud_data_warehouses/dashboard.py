@@ -293,7 +293,6 @@ def user_prctile(conn):
 
 def user_agent(conn):
 
-    # TODO: move to ETL process to prevent complicated end user query
     query = """
     SELECT
         os,
@@ -358,7 +357,6 @@ def user_comparison(user_levels):
 
 def level_query(conn):
 
-    # TODO: move to ETL process to prevent complicated end user query
     with open('user_levels.pgsql') as fh:
         levels = fh.read()
     levels = pd.read_sql(levels, conn)

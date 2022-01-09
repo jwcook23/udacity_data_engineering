@@ -26,6 +26,21 @@ Keep in mind that part of the data for this project was generated using an event
 - 5 free users are in the top 25% of plays. They would be good targets for seeking an upgraded subscription.
 - Most plays are in California, followed by a grouping in the upper midwest.
 
+## Extra Credit
+
+- additional dashboard.py script to display an analytical dashboard
+- additional infrastructure.py script to create and delete Redshift infrastructure, along with automatically saving config params to dwh.cfg.
+- sql_queries.py Redshift copy allows for errors and truncates strings to fit schema
+- etl.py has additional queries to display Redshift copy errrs that were ignored
+- additional test_etl.py script to ensure primary keys are unique, display size of tables, and check for possible truncation during Redshift COPY.
+
+## Wishlist
+
+A list of items that should be implemented, but were not as they may affect the grading of this project.
+
+- Implement user_levels SQL query during ETL process to prevent needing to run a complicated query.
+- Move user agent parsing in dashboard.py script to ETL process.
+
 ## Quick Start
 
 Below is a brief overview of the steps to perform. More detail is included in additional sections.
@@ -37,12 +52,14 @@ Below is a brief overview of the steps to perform. More detail is included in ad
 5. (Optional for Infrastructure as Code) Execute `infastructure.py create` to create Redshift infrastructure.
 6. Execute `create_tables.py`.
 7. Execute `etl.py`.
-8. Execute `test_etl.py` to ensure primary keys are unique and also display size of tables.
+8. (Optional Test) Execute `test_etl.py` to ensure primary keys are unique, display size of tables, and check for possible truncation during Redshift COPY.
 9. (Optional for Dashboard) Install requirements using `requirements_dashboard.txt`.
 10. (Optional for Dashboard) Execute `dashboard.py` to display the analytical dashboard.
 11. (Optional for Infrastructure as Code) Execute `infastructure.py delete` to delete Redshift infrastructure.
 
-## dwh.cfg
+### dwh.cfg
+
+# document here
 
 The following fields are required.
 
@@ -93,8 +110,9 @@ NFRASTRUCTURE/KEY and INFRASTRUCTURE/SECRET are manually generated in the AWS co
 10. Copy the provided values to the NFRASTRUCTURE section of dwh.cfg
 
 
-<!-- TODO: document starting here -->
-<!-- TODO: separate into basic (quickstart) and project "extra credit"-->
+
+
+
 
 Run the script to create the Redshift cluster infrastructure.
 
