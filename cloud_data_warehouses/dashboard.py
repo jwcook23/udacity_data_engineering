@@ -389,13 +389,15 @@ def main():
     config.read('dwh.cfg')
     config = dict(config.items('CLUSTER'))
 
-    conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
+    # Postgres
+    # conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
 
-    # conn = psycopg2.connect(f"""
-    #     host={config['HOST']} dbname={config['DB_NAME']} 
-    #     user={config['DB_USER']} password={config['DB_PASSWORD']} 
-    #     port={config['DB_PORT']}"""
-    # )
+    # Redshift
+    conn = psycopg2.connect(f"""
+        host={config['HOST']} dbname={config['DB_NAME']} 
+        user={config['DB_USER']} password={config['DB_PASSWORD']} 
+        port={config['DB_PORT']}"""
+    )
 
     # perform external complicated user level query
     user_levels = level_query(conn)

@@ -5,7 +5,7 @@ from sql_queries import create_syntax, drop_syntax
 
 def drop_tables(cur, conn):
     drop = drop_syntax()
-    print('Dropping tables if they exist: {tables}.'.format(tables=list(drop.keys())))
+    print('Dropping tables if they exist:\n{tables}.'.format(tables=list(drop.keys())))
     for table, query in drop.items():
         query = query.format(table=table)
         cur.execute(query)
@@ -13,7 +13,7 @@ def drop_tables(cur, conn):
 
 def create_tables(cur, conn):
     create = create_syntax()
-    print('Creating tables: {tables}.'.format(tables=list(create.keys())))
+    print('Creating tables:\n{tables}.'.format(tables=list(create.keys())))
     for table, query in create.items():
         query = query.format(table=table)
         cur.execute(query)

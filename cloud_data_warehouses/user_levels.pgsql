@@ -116,7 +116,7 @@ _group_level AS (
 -- SELECT * FROM _level_id
 -- SELECT * FROM _group_level
 
--- aggreate user statistics by user level change
+-- -- aggreate user statistics by user level change
 SELECT
     user_id,
     RANK() OVER (
