@@ -10,7 +10,7 @@ Data is first copied from files in AWS S3 buckets into Redshift staging tables. 
 
 The final product produces the following dashboard, built using the Python package [Altair](https://altair-viz.github.io/).
 
-![User Play Dashboard](/dashboard.png)
+![User Play Dashboard](./dashboard.png)
 
 ## Key Dashboard Points
 
