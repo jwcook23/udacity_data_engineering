@@ -17,7 +17,15 @@ The source S3 data resides in AWS Region US West (Oregon) us-west-2 under the Ac
 
 ## Setup
 
-1. Using the AWS console, create an IAM user for programmatic access to AWS.
+1. Create a configuration file named `dl.cfg` with the following structure.
+
+    ```cfg
+    AWS_ACCESS_KEY_ID=***
+    AWS_SECRET_ACCESS_KEY=***
+    REGION=us-west-2
+    ```
+
+2. Using the AWS console, create an IAM user for programmatic access to AWS. Add the created credentials to `dl.cfg`.
 
     1. IAM > Users > Add users
     2. Enter User name = udacity_data_lake (anything to uniquely identify)
@@ -33,7 +41,7 @@ The source S3 data resides in AWS Region US West (Oregon) us-west-2 under the Ac
     9. Select Next: tag
     10. Select Next: Review
     11. Select Create user
-    12. Copy key and secret to dl.cfg
+    12. Copy key and secret to `dl.cfg`
         - AWS_ACCESS_KEY_ID = Access key ID
         - AWS_SECRET_ACCESS_KEY = Secret access key
 
