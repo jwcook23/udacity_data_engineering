@@ -24,9 +24,9 @@ def create_spark_session():
     '''
 
     spark = SparkSession.builder
-    # spark = spark.config(
-    #         "spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0"
-    # )
+    spark = spark.config(
+            "spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0"
+    )
     spark = spark.getOrCreate()
     return spark
 
@@ -119,7 +119,7 @@ def process_log_data(spark, input_data, output_data):
 
 def main():
     spark = create_spark_session()
-    input_data = "s3a://udacity-dend/"
+    input_data = "s3://udacity-dend/"
     output_data = "/output"
     
     process_song_data(spark, input_data, output_data)    
