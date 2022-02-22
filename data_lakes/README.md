@@ -35,7 +35,7 @@ The source S3 data resides in AWS Region US West (Oregon) us-west-2 under the Ac
     6. Enter Group name = udacity_spark (anything to uniquely identify)
     7. Select the following policies
         - AmazonS3FullAccess
-        - AmazonEMRFullAccess
+        - AmazonEMRFullAccessPolicy_v2
         - AWSBudgetsActionsWithAWSResourceControlAccess
     8. Select Create group
     9. Select Next: tag
@@ -44,6 +44,16 @@ The source S3 data resides in AWS Region US West (Oregon) us-west-2 under the Ac
     12. Copy key and secret to `dl.cfg`
         - AWS_ACCESS_KEY_ID = Access key ID
         - AWS_SECRET_ACCESS_KEY = Secret access key
+
+3. In the AWS console, create an EMR IAM role.
+
+    1. IAM > Roles > Create role
+    2. Trusted entity type = AWS service
+    3. Use case = EMR
+    4. Select Next
+    5. Select Next on Add permissions
+    6. Enter Role name = emr_default (anything to uniquely identify)
+    7. Select Create role
 
 Create and activate virtual environment.
 

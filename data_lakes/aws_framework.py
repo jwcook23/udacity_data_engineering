@@ -76,7 +76,7 @@ def emr_cluster(config, action:Literal['create','delete']):
         if action=='create':
             client.run_job_flow(
                 Name=config['EMR']['CLUSTER_NAME'],
-                LogUri=f"s3://{config['S3']['BUCKET_NAME']}",
+                LogUri=f"s3://{config['S3']['OUTPUT_BUCKET_NAME']}",
                 ReleaseLabel='emr-5.34.0',
                 Instances={
                     'MasterInstanceType': 'm3.xlarge',
@@ -84,12 +84,16 @@ def emr_cluster(config, action:Literal['create','delete']):
                     'InstanceCount': 3,
                     'KeepJobFlowAliveWhenNoSteps': True,
                     'TerminationProtected': False,
-                    'Ec2SubnetId': 'my-subnet-id',
-                    'Ec2KeyName': 'my-key',
+                    # 'Ec2SubnetId': 'my-subnet-id',
+                    # 'Ec2KeyName': 'my-key',
                 },
-                # VisibleToAllUsers=True,
-                # JobFlowRole='EMR_EC2_DefaultRole',
-                # ServiceRole='EMR_DefaultRole'
+                JobFlowRole='EMR_EC2_DefaultRole',
+                ServiceRole='EMR_DefaultRole',
+                Applications=[
+                    {
+                        'Name': 'Spark'
+                    }
+    ],
             )
         elif action=='delete':
             pass
@@ -115,6 +119,6 @@ if __name__ == "__main__":
     parser.add_argument('action', type=str, choices=['create','delete'])
     args = parser.parse_args()
 
-    # output_s3_bucket(config, args.action)
-    emr_cluster(config, action=args.action)
+    output_s3_bucket(config, args.action)
+    # emr_cluster(config, action=args.action)
     # billing_alert(config, action=args.action)
