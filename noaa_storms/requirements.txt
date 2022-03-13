@@ -1,5 +1,6 @@
 pandas
 vega_datasets
 geojson
+scipy
 altair
 jsonschema<4.0

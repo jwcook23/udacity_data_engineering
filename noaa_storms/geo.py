@@ -1,16 +1,23 @@
 import os
 import webbrowser
 import glob
+import json
 import altair as alt
 from vega_datasets import data
 import pandas as pd
 import numpy as np
 from scipy.spatial import ConvexHull
 import geojson
+import requests
 
 # load data
 counties = alt.topo_feature(data.us_10m.url, 'counties')
-storms = glob.glob('storms/*details*.csv')
+# counties = requests.get(data.us_10m.url)
+# counties = geojson.loads(counties.text)
+# counties['objects'] = counties['objects']['counties']['geometries']
+# counties['objects'] = [x for x in counties['objects'] if int(x['id']/1000)==12]
+
+storms = glob.glob('data/*details*.csv')
 columns = [
     'EVENT_ID','EPISODE_ID','EVENT_TYPE',
     'YEAR', 'BEGIN_DATE_TIME',
@@ -30,13 +37,22 @@ storms = storms[storms['EVENT_TYPE'].isin([
     'Dust Devil', 'Hurricane'
 ])]
 
-# TODO: plot county region for missing lat/lon
+# test plot single events
 storms = storms[storms['EPISODE_ID']==162055]
 # storms = storms[storms['BEGIN_LAT'].notna() & storms['BEGIN_LON'].notna()]
 # episode = storms[['EPISODE_ID']].value_counts().reset_index()
 # storms = storms[storms['EPISODE_ID']==episode.loc[0]['EPISODE_ID']]
 
 # US counties background
+# geojson = alt.InlineData(
+#     values=geojson.FeatureCollection([
+#         polygon, # feature_2
+#     ]), 
+#     format=alt.DataFormat(property='features',type='json')
+# )
+# background = alt.Chart(geojson).mark_geoshape(
+#     filled=False
+# )
 background = alt.Chart(counties).mark_geoshape(
     fill='lightgray',
     stroke='white'
@@ -50,6 +66,8 @@ event = pd.concat([
     storms[['END_LON','END_LAT']].rename(columns={'END_LON': 'LON', 'END_LAT': 'LAT'})
 ])
 event = event.dropna()
+
+# TODO: plot county region for missing lat/lon
 
 # storm points
 points = alt.Chart(event)
@@ -74,13 +92,13 @@ else:
         ]),
         properties={"name":"abc"}
     )
-    geojson = alt.InlineData(
+    features = alt.InlineData(
         values=geojson.FeatureCollection([
             polygon, # feature_2
         ]), 
         format=alt.DataFormat(property='features',type='json')
     )
-    boundary = alt.Chart(geojson).mark_geoshape(
+    boundary = alt.Chart(features).mark_geoshape(
         filled=False
     ).encode(
         color="properties.name:N"
