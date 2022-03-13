@@ -1,0 +1,5 @@
+pandas
+vega_datasets
+geojson
+altair
+jsonschema<4.0
